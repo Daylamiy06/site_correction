@@ -1,0 +1,5 @@
+/document_part1.pdf
+  Cache-Control: public, max-age=31536000, immutable
+
+/document_part2.pdf
+  Cache-Control: public, max-age=31536000, immutable
