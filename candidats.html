@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تصحيح المرشح</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+<script>
+document.addEventListener('alpine:init', () => {
+  Alpine.store('candidat', {
+    selectedAjza: "",
+    loading: false,
+    numeros: [],
+    candidats: [],
+	messageTemporaire: "",
+    candidatSelectionne: "",
+    get candidatsFiltres() {
+  	const idsUtilisés = this.numeros.map(n => n.candidatId).filter(Boolean);
+  	return this.candidats.filter(c => c.ajza == this.selectedAjza && !idsUtilisés.includes(c.id));
+	}
+  });
+});
+</script>
+</head>
+
+<body class="flex justify-center items-center min-h-screen bg-gray-100">
+<div x-data="$store.candidat" class="bg-white p-6 shadow-md rounded-lg w-full max-w-3xl">
+  <div class="mb-4 flex items-center gap-2">
+    <h1 class="text-xl font-bold">تصحيح المرشح</h1>
+    <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition mr-auto">تسجيل الخروج</button>
+  </div>
+  <!-- Spinner -->
+  <div x-show="loading" class="fixed inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50" x-cloak>
+    <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+  </div>
+  <!-- Header -->
+  <div class="mb-4 flex items-center gap-2">
+    <label class="block text-lg font-bold whitespace-nowrap">تصفية الأرقام حسب الجزء :</label>
+    <select class="border p-2 rounded w-24" x-model="selectedAjza">
+      <template x-for="j in [...new Set(numeros.map(n => n.ajza))].sort((a, b) => b - a)" :key="j">
+        <option :value="j" x-text="j"></option>
+      </template>
+    </select>
+  </div>
+  <div class="mb-4 flex items-center gap-2">
+    <label class="block text-lg font-bold whitespace-nowrap">قائمة المرشحين :</label>
+    <select class="border p-2 rounded w-48" x-model="candidatSelectionne">
+      <option value="">حدد مرشحًا</option>
+      <template x-for="c in candidatsFiltres" :key="c.id">
+        <option :value="c.nom" x-text="c.nom"></option>
+      </template>
+    </select>
+  </div>
+  <!-- Cards -->
+  <div x-show="!candidatSelectionne || !candidatsFiltres.some(c => c.nom === candidatSelectionne)" class="text-gray-500 col-span-full text-center py-8" x-text="messageTemporaire || 'الرجاء اختيار مرشح لعرض الأرقام.'"></div>
+  <div x-show="candidatSelectionne && candidatsFiltres.some(c => c.nom === candidatSelectionne)" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4" dir="ltr">
+    <template x-for="numero in numeros.filter(n => n.ajza == selectedAjza && !n.candidatId).sort((a, b) => a.numero - b.numero)" :key="numero.id">
+      <div @click="attribuerNumero(numero.id)" class="bg-blue-100 border-2 border-gray-500 rounded-lg shadow-md p-4 flex items-center justify-center">
+        <h2 class="text-4xl font-bold text-black" x-text="numero.numero"></h2>
+      </div>
+    </template>
+  </div>
+  <!-- Footer -->
+  <footer class="bg-white border-t mt-10 py-4 text-center text-sm text-gray-600">
+    <p>© 2025 مسابقة الريان - جميع الحقوق محفوظة</p>
+    <p class="mt-1">تم التطوير بواسطة Day06 -
+      <a href="https://wa.me/261327189552" class="text-blue-500 hover:underline" target="_blank">واتساب</a>
+    </p>
+  </footer>
+</div>
+
+<!-- Script module-->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js";
+import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDP9EM5fld8tUradGbGVo-9LaAe4q0l6vQ",
+  authDomain: "correctionconcours.firebaseapp.com",
+  databaseURL: "https://correctionconcours-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "correctionconcours",
+  storageBucket: "correctionconcours.appspot.com",
+  messagingSenderId: "117965376477",
+  appId: "1:117965376477:web:a59362c9757f5f4bba0434"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const auth = getAuth(app);
+const store = Alpine.store('candidat');
+
+onAuthStateChanged(auth, (user) => {
+  if (!user) window.location.href = 'login.html';
+});
+
+const loggedInUser = localStorage.getItem('loggedInUser');
+const userRole = localStorage.getItem('userRole');
+const userRef = ref(db, 'utilisateurs/' + loggedInUser);
+
+async function startLastSeenUpdate() {
+  const updateLastSeen = () => update(userRef, { lastSeen: Date.now() });
+  updateLastSeen();
+  setInterval(updateLastSeen, 60 * 1000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (!loggedInUser || userRole !== "المرشح") {
+    alert("ليس لديك صلاحية للوصول إلى هذه الصفحة !");
+    window.location.href = 'login.html';
+    return;
+  }
+  startLastSeenUpdate();
+  loadNumeros();
+  loadCandidats();
+});
+
+function loadNumeros() {
+  store.loading = true;
+  onValue(ref(db, 'numeros'), (snapshot) => {
+    const data = snapshot.val() || {};
+    const list = Object.entries(data).map(([id, n]) => ({ id, ...n }));
+    store.numeros = list;
+    const sortedAjza = [...new Set(list.map(n => n.ajza))].sort((a, b) => b - a);
+    store.selectedAjza = sortedAjza[0] || "";
+    store.loading = false;
+  });
+}
+
+function loadCandidats() {
+  onValue(ref(db, 'candidats'), (snapshot) => {
+    const data = snapshot.val() || {};
+    const list = Object.entries(data).map(([id, c]) => ({ id, ...c }));
+    store.candidats = list;
+  });
+}
+
+function attribuerNumero(numeroId) {
+  const candidatNom = store.candidatSelectionne;
+  const candidat = store.candidats.find(c => c.nom === candidatNom);
+  const numeroRef = ref(db, 'numeros/' + numeroId);
+  update(numeroRef, { candidatId: candidat.id });
+  store.candidatSelectionne = "";
+  store.messageTemporaire = "تم ✅";
+  setTimeout(() => store.messageTemporaire = "", 4000);
+}
+
+window.attribuerNumero = attribuerNumero;
+
+window.logout = async function () {
+  await update(userRef, { lastSeen: Date.now() - 6 * 60 * 1000 });
+  await signOut(auth);
+  localStorage.removeItem('loggedInUser');
+  localStorage.removeItem('userRole');
+  window.location.href = 'login.html';
+};
+</script>
+</body>
+</html>

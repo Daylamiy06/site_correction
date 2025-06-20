@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/js/all.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <title>لوحة تحكم المشرف</title>
+    <style>
+        [x-cloak] { display: none !important; }
+        .active {
+            border-bottom: 3px solid #007BFF;
+            font-weight: bold;
+            background-color: #e0f2fe;
+            border-radius: 5px;
+        }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loggedInUser = localStorage.getItem('loggedInUser');
+            const userRole = localStorage.getItem('userRole');
+
+            if (!loggedInUser || userRole !== "المسؤول") {
+                alert("ليس لديك صلاحية للوصول إلى هذه الصفحة !");
+                window.location.href = 'login.html';
+                return;
+            }
+            fetch("https://firebase-admin-api.onrender.com/ping").catch(() => {});
+            startLastSeenUpdate(loggedInUser);
+        });
+
+        window.initFirebase = async function () {
+            if (window.firebaseInitialized) return window.firebaseInstance;
+
+            const firebaseConfig = {
+                apiKey: "AIzaSyDP9EM5fld8tUradGbGVo-9LaAe4q0l6vQ",
+                authDomain: "correctionconcours.firebaseapp.com",
+                databaseURL: "https://correctionconcours-default-rtdb.europe-west1.firebasedatabase.app",
+                projectId: "correctionconcours",
+                storageBucket: "correctionconcours.appspot.com",
+                messagingSenderId: "117965376477",
+                appId: "1:117965376477:web:a59362c9757f5f4bba0434"
+            };
+
+            const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js");
+            const { getDatabase } = await import("https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js");
+            const { getAuth, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/11.5.0/firebase-auth.js");
+
+            const app = initializeApp(firebaseConfig);
+            const db = getDatabase(app);
+            const auth = getAuth(app);
+
+            onAuthStateChanged(auth, (user) => {
+                if (!user) {
+                    window.location.href = 'login.html';
+                }
+            });
+
+            window.firebaseInitialized = true;
+            window.firebaseInstance = { app, db, auth };
+            return window.firebaseInstance;
+        };
+
+        window.fetchCandidats = async function (callbackOnData) {
+            const { db } = await window.initFirebase();
+            const { ref, set, remove, onValue } = await import("https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js");
+
+            const candidatsRef = ref(db, 'candidats');
+            onValue(candidatsRef, (snapshot) => {
+                const data = snapshot.val() || {};
+                const candidatsArray = Object.entries(data).map(([key, value]) => ({
+                    id: key,
+                    ...value
+                }));
+                callbackOnData(candidatsArray);
+            });
+
+            return {
+                ajouterCandidat: (candidat) => set(ref(db, 'candidats/' + candidat.id), candidat),
+                supprimerCandidat: (id) => remove(ref(db, 'candidats/' + id))
+            };
+        };
+
+        window.fetchnotes = async function (callbackOnData) {
+            const { db } = await window.initFirebase();
+            const { ref, onValue } = await import("https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js");
+
+            const notesRef = ref(db, 'notes');
+            onValue(notesRef, (snapshot) => {
+                const data = snapshot.val() || {};
+                const notesArray = Object.entries(data).map(([key, value]) => ({
+                    id: key,
+                    ...value
+                }));
+                callbackOnData(notesArray);
+            });
+        };
+        
+        window.fetchNumeros = async function (callbackOnData) {
+            const { db } = await window.initFirebase();
+            const { ref, set, remove, onValue } = await import("https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js");
+
+            const numerosRef = ref(db, 'numeros');
+            onValue(numerosRef, (snapshot) => {
+                const data = snapshot.val() || {};
+                const numerosArray = Object.entries(data).map(([key, value]) => ({
+                    id: key,
+                    ...value
+                }));
+                callbackOnData(numerosArray);
+            });
+
+            return {
+                ajouterNumero: (numero) => set(ref(db, 'numeros/' + numero.id), numero),
+                supprimerNumero: (id) => remove(ref(db, 'numeros/' + id))
+            };
+        };
+
+        async function startLastSeenUpdate(loggedInUser) {
+            const { db } = await window.initFirebase();
+            const { ref, update } = await import("https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js");
+
+            const userRef = ref(db, 'utilisateurs/' + loggedInUser);
+
+            const updateLastSeen = () => update(userRef, { lastSeen: Date.now() });
+            updateLastSeen();
+            setInterval(updateLastSeen, 60 * 1000);
+        }
+
+        async function logout() {
+            const loggedInUser = localStorage.getItem('loggedInUser');
+
+            const { db, auth } = await window.initFirebase();
+            const { ref, update } = await import("https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js");
+            const { signOut } = await import("https://www.gstatic.com/firebasejs/11.5.0/firebase-auth.js");
+
+            const userRef = ref(db, 'utilisateurs/' + loggedInUser);
+            await update(userRef, { lastSeen: Date.now() - 6 * 60 * 1000 });
+            await signOut(auth);
+
+            localStorage.removeItem('loggedInUser');
+            localStorage.removeItem('userRole');
+            window.location.href = 'login.html';
+        }
+    </script>
+</head>
+
+<body class="bg-gray-100">
+    <div x-data="{
+        active: 'listeCandidats',
+        snackbarVisible: false,
+        snackbarMessage: '',
+        snackbarAction: null,
+        isLoading: false,
+        confirmDelete: {
+            visible: false,
+            message: '',
+            confirm: null
+        },
+        confirmationCritique: {
+            visible: false,
+            message: '',
+            confirm: null
+        },
+        loadContent(tab) {
+            this.isLoading = true;
+            fetch(tab + '.html')
+                .then(res => res.text())
+                .then(html => {
+                    this.$refs.content.innerHTML = html;
+                })
+                .catch(() => {
+                    this.$refs.content.innerHTML = '<p class=\'text-red-600 text-center\'>حدث خطأ أثناء تحميل الصفحة.</p>';
+                })
+                .finally(() => {
+                    this.isLoading = false;
+                });
+        },
+        demanderConfirmation(noeud) {
+            const nom = noeud === 'candidats' ? 'المرشحين' : 'الدرجات';
+
+            this.confirmDelete.message = `هل أنت متأكد من حذف جميع البيانات في ${nom} ؟`;
+            this.confirmDelete.visible = true;
+            this.confirmDelete.confirm = () => {
+                this.confirmDelete.visible = false;
+
+                // Afficher la seconde confirmation critique
+                this.confirmationCritique.message = `أنت على وشك حذف جميع بيانات ${nom} نهائيًا. هذا الإجراء لا يمكن التراجع عنه وسيؤدي إلى فقدان كل المعلومات المرتبطة بشكل دائم. هل أنت متأكد بنسبة 100٪ من أنك تريد تنفيذ هذا الحذف الخطير ؟`;
+                this.confirmationCritique.visible = true;
+                this.confirmationCritique.confirm = async () => {
+                    this.confirmationCritique.visible = false;
+
+                    const { db } = await window.initFirebase();
+                    const { ref, remove } = await import('https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js');
+
+                    // Supprimer le noeud sélectionné 
+                    await remove(ref(db, noeud));
+                    
+                    // Si on supprime tous les candidats, on supprime aussi toutes les notes
+                    if (noeud === 'candidats') {
+                        await remove(ref(db, 'notes'));
+                    }
+
+                    this.$refs.optionsDetails.open = false;
+                    this.loadContent(this.active);
+                    this.snackbarMessage = `تم حذف جميع البيانات في ${nom} بنجاح.`;
+                    this.snackbarVisible = true;
+
+                    setTimeout(() => this.snackbarVisible = false, 5000);
+                };
+            };
+        }
+    }" x-init="loadContent('listeCandidats')" class="pt-36">
+
+        <div class="bg-white shadow-md fixed top-0 left-0 w-full z-50">
+            <div class="p-4 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-user-shield text-black text-2xl"></i>
+                    <h1 class="text-xl font-bold">المسؤول</h1>
+                </div>
+                <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition">تسجيل الخروج</button>
+            </div>
+
+            <div class="p-2 flex space-x-2 rtl:space-x-reverse text-center">
+                <button class="tab p-2 text-blue-700 rounded transition"
+                    @click="active = 'listeCandidats'; loadContent('listeCandidats')"
+                    :class="{ active: active === 'listeCandidats' }">            قائمة المرشحين
+                </button>
+                <button class="tab p-2 text-blue-700 rounded transition"
+                    @click="active = 'notes'; loadContent('notes')"
+                    :class="{ active: active === 'notes' }">            إدارة الدرجات
+                </button>
+                <button class="tab p-2 text-blue-700 rounded transition"
+                    @click="active = 'numero'; loadContent('numero')"
+                    :class="{ active: active === 'numero' }">إدارة أرقام الأسئلة
+                </button>
+                <button class="tab p-2 text-blue-700 rounded transition"
+                    @click="active = 'jurys'; loadContent('jurys')"
+                    :class="{ active: active === 'jurys' }">            إدارة الحكام
+                </button>
+            </div>
+        </div>
+        
+        <!-- Spinner -->
+        <div x-show="isLoading" class="fixed inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50" x-cloak>
+            <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+        </div>
+
+        <div class="p-4" x-ref="content">
+            <!-- Les pages filles seront injectées ici -->
+        </div>
+
+        <footer class="bg-white border-t mt-10 py-4 text-center text-sm text-gray-600">
+            <p>© 2025 مسابقة الريان - جميع الحقوق محفوظة</p>
+            <p class="mt-1">تم التطوير بواسطة Day06 - 
+                <a href="https://wa.me/261327189552" class="text-blue-500 hover:underline" target="_blank">واتساب</a>
+            </p>
+
+            <div class="relative mt-4 text-xs text-gray-500">
+                <details x-ref="optionsDetails">
+                    <summary class="cursor-pointer hover:underline">خيارات متقدمة</summary>
+                    <div class="mt-2 space-y-1 text-center">
+                        <button @click="demanderConfirmation('candidats')" class="text-red-600 hover:underline">حذف جميع المرشحين</button><br>
+                        <button @click="demanderConfirmation('notes')" class="text-red-600 hover:underline">حذف جميع الدرجات</button><br>
+                    </div>
+                </details>
+                <!-- Snackbar -->
+                <div x-show="snackbarVisible" class="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded shadow-lg text-sm" x-cloak>
+                    <span x-text="snackbarMessage"></span>
+                </div>
+            </div>
+        </footer>
+
+        <!-- Boîte de confirmation personnalisée -->
+        <div x-show="confirmDelete.visible"
+             x-cloak
+             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white p-6 rounded shadow-md text-center w-80">
+                <h2 class="text-xl font-bold mb-4">حذف</h2>
+                <p class="mb-6" x-text="confirmDelete.message"></p>
+                <div class="flex justify-center gap-4">
+                    <button @click="confirmDelete.confirm()" class="bg-blue-500 text-white px-5 font-bold py-1 rounded">نعم</button>
+                    <button @click="confirmDelete.visible = false" class="bg-red-500 text-white px-5 font-bold py-1 rounded">إلغاء</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Confirmation critique -->
+        <div x-show="confirmationCritique.visible"
+             x-cloak
+             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white p-6 rounded shadow-md text-center w-96">
+                <h2 class="text-2xl font-bold text-red-600 mb-4">! تنبيه خطير</h2>
+                <p class="mb-6 text-gray-800" x-text="confirmationCritique.message"></p>
+                <div class="flex justify-center gap-4">
+                    <button @click="confirmationCritique.confirm()" class="bg-red-600 text-white px-5 py-2 font-bold rounded">نعم، أريد الحذف</button>
+                    <button @click="confirmationCritique.visible = false" class="bg-gray-400 text-white px-5 py-2 font-bold rounded">إلغاء</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

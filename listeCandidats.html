@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        window.fetchCandidats = function(callback) {
+            try {
+                onValue(ref(db, 'candidats'), (snapshot) => {
+                    const data = snapshot.val() || {};
+                    const result = Object.values(data);
+                    callback(result, {
+                        ajouterCandidat: (candidat) => set(ref(db, 'candidats/candidat' + candidat.id), candidat),
+                        supprimerCandidat: (id) => remove(ref(db, 'candidats/candidat' + id))
+                    });
+                }, (error) => {
+                    alert("خطأ في تحميل البيانات: " + error.message);
+                });
+            } catch (e) {
+                alert("فشل في الاتصال بـ Firebase");
+            }
+        };
+    </script>
+    <title>إدارة المرشحين</title>
+
+    <style>
+        .fixed-width { width: 990px; margin: auto; }
+        .operations-column { width: 150px; }
+        .name-column { width: 250px; }
+        .country-column { width: 200px; }
+        .parts-column { width: 80px; }
+        .id-column { width: 50px; }
+        input:focus {
+            border-color: #3b82f6 !important;
+            outline: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex justify-center items-center min-h-screen">
+    <div class="bg-white p-6 shadow-md rounded-lg w-full max-w-[1000px] md:max-w-none"
+         x-data='{ 
+            candidats: [], 
+            actions: null,
+            showModal: false, 
+            showImportModal: false,
+            excelPreview: [],
+            nextId: 1,
+            searchQuery: "",
+            sortKey: "",
+            sortAsc: true,
+            snackbarMessage: "",
+            snackbarAction: null,
+            snackbarVisible: false,
+            lastDeletedCandidat: null,
+            loading: true,
+            formData: { id: "", nom: "", pays: "", ajza: "" },
+            importErrorMessage: "",
+            errorMessage: "",
+            confirmDelete: {
+                visible: false,
+                id: null,
+                confirm: () => {}
+            },
+            resetForm() { 
+                this.formData = { id: "", nom: "", pays: "", ajza: "" }; 
+                this.errorMessage = ""; 
+            },
+            get filteredCandidats() {
+                if (!this.searchQuery.trim()) return this.candidats;
+                const q = this.searchQuery.toLowerCase();
+                return this.candidats.filter(c => 
+                    c.nom.toLowerCase().includes(q) || 
+                    c.pays.toLowerCase().includes(q)
+                );
+            },
+            get sortedCandidats() {
+                let data = [...this.filteredCandidats];
+                if (this.sortKey) {
+                    data.sort((a, b) => {
+                        const valA = a[this.sortKey];
+                        const valB = b[this.sortKey];
+                        if (typeof valA === "number") {
+                            return this.sortAsc ? valA - valB : valB - valA;
+                        }
+                        return this.sortAsc
+                            ? String(valA).localeCompare(String(valB))
+                            : String(valB).localeCompare(String(valA));
+                    });
+                }
+                return data;
+            },
+            toggleSort(key) {
+                if (this.sortKey === key) {
+                    this.sortAsc = !this.sortAsc;
+                } else {
+                    this.sortKey = key;
+                    this.sortAsc = true;
+                }
+            },
+            showSnackbar(message, action = null) {
+                this.snackbarMessage = message;
+                this.snackbarAction = action;
+                this.snackbarVisible = true;
+                setTimeout(() => {
+                    this.snackbarVisible = false;
+                    this.snackbarAction = null;
+                }, 4000);
+            },
+            saveCandidat() {
+                if (!this.actions) return;
+
+                const nom = this.formData.nom.trim();
+                const pays = this.formData.pays.trim();
+                const ajza = Number(this.formData.ajza);
+
+                if (!nom || !pays || isNaN(ajza) || ajza <= 0) {
+                    this.errorMessage = "الرجاء ملء جميع الحقول بشكل صحيح";
+                    return;
+                }
+
+                const candidat = {
+                    id: this.formData.id || this.nextId++,
+                    nom, pays, ajza
+                };
+
+                this.actions.ajouterCandidat(candidat)
+                    .then(async () => {
+                        this.showSnackbar(candidat.id === this.formData.id ? "تم تعديل المرشح بنجاح" : "تم تسجيل المرشح بنجاح");
+                        try {
+                            const { db } = await window.initFirebase();
+                            const { ref, get, set } = await import("https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js");
+                            const noteRef = ref(db, "notes/" + candidat.id);
+                            const snapshot = await get(noteRef);
+
+                            if (snapshot.exists()) {
+                                await set(noteRef, {
+                                    ...snapshot.val(),
+                                    nom: candidat.nom,
+                                    pays: candidat.pays,
+                                    ajza: candidat.ajza
+                                });
+                            }
+                        } catch (error) {
+                            this.showSnackbar("فشل في تحديث بيانات الملاحظة: " + error.message);
+                        }
+                    })
+                    .catch(error => {
+                        this.showSnackbar("حدث خطأ: " + error.message);
+                    });
+
+                this.resetForm();
+                this.showModal = false;
+            },
+            handleFileUpload(event) {
+                const fileInput = event.target;
+                const file = fileInput.files[0];
+                if (!file || !file.name.match(/\.xlsx?$/)) {
+                    this.importErrorMessage = "الملف يجب أن يكون بصيغة Excel (.xls أو .xlsx)";
+                    fileInput.value = "";
+                    this.excelPreview = []
+                    return;
+                }
+                
+                this.importErrorMessage = "";
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    
+                    this.loading = true;
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: "array" });
+                        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const raw = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                        const headers = raw[0] || [];
+
+                        // Vérification des en-têtes attendues
+                        if (!(headers.includes("الإسم") || headers.includes("الاسم")) || !headers.includes("الدولة") || !headers.includes("الأجزاء")) {
+                            this.importErrorMessage = "الملف يجب أن يحتوي على الأعمدة: الاسم، الدولة، الأجزاء";
+                            this.excelPreview = []
+                            return;
+                        }
+                        
+                        // Conversion à partir des noms d en-tête
+                        const rows = XLSX.utils.sheet_to_json(sheet);
+
+                        this.excelPreview = rows.map((r, index) => ({
+                            id: this.nextId + index,
+                            nom: r["الاسم"] || r["الإسم"] || "",
+                            pays: r["الدولة"] || "",
+                            ajza: Number(r["الأجزاء"]) || 0
+                        })).filter(c => c.nom && c.pays && c.ajza > 0);
+
+                        if (this.excelPreview.length === 0) {
+                            this.importErrorMessage = "الملف لا يحتوي على بيانات صالحة";
+                        }
+                    } catch (err) {
+                        this.importErrorMessage = "فشل في قراءة الملف: " + err.message;
+                    } finally {
+                        this.loading = false;
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            },
+            confirmImportFromExcel() {
+                if (!this.actions || this.excelPreview.length === 0) {
+                    this.importErrorMessage = "لا توجد بيانات صالحة للاستيراد";
+                    return;
+                }
+                this.loading = true;
+                Promise.all(this.excelPreview.map(c => this.actions.ajouterCandidat(c)))
+                    .then(() => {
+                        this.showSnackbar("تم استيراد المرشحين بنجاح");
+                        this.nextId += this.excelPreview.length;
+                        this.excelPreview = [];
+                        this.showImportModal = false;
+                    })
+                    .catch(err => {
+                        this.importErrorMessage = "فشل في استيراد البيانات: " + err.message;
+                    })
+                    .finally(() => {
+                        this.loading = false; // FIN spinner
+                    });
+            },
+            async deleteCandidat(id) {
+                const candidat = this.candidats.find(c => c.id === id);
+                const { db } = await window.initFirebase();
+                const { get, ref, remove, set } = await import("https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js");
+
+                let note = null;
+                try {
+                    note = (await get(ref(db, `notes/${id}`))).val();
+                } catch {
+                    this.showSnackbar("حدث خطأ أثناء تحميل الملاحظة");
+                    return;
+                }
+
+                this.confirmDelete = {
+                    visible: true,
+                    id,
+                    confirm: async () => {
+                        this.confirmDelete.visible = false;
+                        this.lastDeletedCandidat = { candidat, note };
+
+                        try {
+                            await Promise.all([
+                                this.actions.supprimerCandidat(id),
+                                remove(ref(db, `notes/${id}`))
+                            ]);
+
+                            this.showSnackbar("تم حذف المرشح بنجاح", async () => {
+                                const { candidat, note } = this.lastDeletedCandidat || {};
+                                if (candidat) {
+                                    await this.actions.ajouterCandidat(candidat);
+                                    if (note !== null) {
+                                        await set(ref(db, `notes/${id}`), note);
+                                    }
+                                    this.showSnackbar("تم التراجع عن الحذف");
+                                    this.lastDeletedCandidat = null;
+                                }
+                            });
+                        } catch (err) {
+                            this.showSnackbar("حدث خطأ أثناء الحذف: " + err.message);
+                        }
+                    }
+                };
+            }
+        }'
+         x-init="
+            fetchCandidats(data => {
+                candidats = data;
+                const ids = data.map(c => parseInt(c.id)).filter(n => !isNaN(n));
+                nextId = ids.length ? Math.max(...ids) + 1 : 1;
+                loading = false;
+            }).then(result => actions = result)">
+        
+        <!-- Loading Spinner -->
+        <div x-show="loading" class="fixed inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50" x-cloak>
+            <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+        </div>
+
+        <h1 class="text-2xl font-bold mb-4 text-center">إدارة المرشحين</h1>
+
+        <div class="mb-4 flex flex-col sm:flex-row justify-between gap-4 items-stretch sm:items-center">
+            <button @click="resetForm(); showModal = true" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded w-full sm:w-auto">جديد</button>
+            <button @click="showImportModal = true; excelPreview = []; importErrorMessage = ''; var input = document.getElementById('excelFileInput'); if (input) input.value = ''" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full sm:w-auto">استيراد من Excel</button>            
+            <input type="text" x-model="searchQuery" placeholder="بحث بالإسم أو الدولة..." 
+                   class="w-full sm:w-1/2 px-4 py-2 border-2 border-gray-500 rounded-md bg-white text-right placeholder:text-right">
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full border-collapse border border-gray-400 text-center">
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="border border-gray-400 p-2 operations-column">العمليات</th>
+                        <th class="border border-gray-400 p-2 parts-column cursor-pointer" @click="toggleSort('ajza')">
+                            الأجزاء 
+                            <span x-show="sortKey === 'ajza'" x-text="sortAsc ? '↑' : '↓'"></span>
+                        </th>
+                        <th class="border border-gray-400 p-2 country-column cursor-pointer" @click="toggleSort('pays')">
+                            الدولة 
+                            <span x-show="sortKey === 'pays'" x-text="sortAsc ? '↑' : '↓'"></span>
+                        </th>
+                        <th class="border border-gray-400 p-2 name-column cursor-pointer" @click="toggleSort('nom')">
+                            الإسم 
+                            <span x-show="sortKey === 'nom'" x-text="sortAsc ? '↑' : '↓'"></span>
+                        </th>
+                        <th class="border border-gray-400 p-2 id-column cursor-pointer" @click="toggleSort('id')">
+                            Id 
+                            <span x-show="sortKey === 'id'" x-text="sortAsc ? '↑' : '↓'"></span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr x-show="sortedCandidats.length === 0">
+                        <td class="p-4 text-center text-gray-500" :colspan="5">
+                                    لا توجد بيانات لعرضها حالياً.
+                        </td>
+                    </tr>
+                    <template x-for="candidat in sortedCandidats" :key="candidat.id">
+                        <tr>
+                            <td class="border border-gray-400 p-2">
+                                <div class="flex justify-center gap-2">
+                                    <button 
+                                        @click="formData = { id: candidat.id, nom: candidat.nom, pays: candidat.pays, ajza: candidat.ajza }; showModal = true" 
+                                        class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded">تعديل</button>
+                                    <button 
+                                        @click="deleteCandidat(candidat.id)" 
+                                        class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded">حذف</button>
+                                </div>
+                            </td>
+                            <td class="border border-gray-400 p-2" x-text="candidat.ajza"></td>
+                            <td class="border border-gray-400 p-2" x-text="candidat.pays"></td>
+                            <td class="border border-gray-400 p-2" x-text="candidat.nom"></td>
+                            <td class="border border-gray-400 p-2" x-text="candidat.id"></td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Modale -->
+        <div x-show="showModal" class="fixed inset-0 bg-gray-500 bg-opacity-50 shadow-2xl shadow-black/40 flex justify-center items-center" @click="showModal = false; resetForm()" x-cloak>
+            <div @click.stop class="bg-gray-100 p-8 rounded-lg shadow-lg w-11/12 sm:w-3/4 md:w-2/3 lg:w-1/2 xl:w-1/3 2xl:w-1/4">
+                <h2 class="text-2xl font-semibold text-center mb-6 text-gray-700">إضافة / تعديل مرشح</h2>
+
+                <template x-if="errorMessage">
+                    <div class="mb-4 text-red-600 bg-red-100 border border-red-300 rounded px-4 py-2 text-sm text-right shadow-md">
+                        <span x-text="errorMessage"></span>
+                    </div>
+                </template>
+
+                <div class="mb-4">
+                    <label for="name" class="block text-sm font-medium text-gray-700 mb-1">الإسم:</label>
+                    <input type="text" id="name" x-model="formData.nom"
+                           :class="{'border-red-500': !formData.nom && errorMessage}" 
+                           class="w-full px-4 py-2 border-2 border-gray-500 rounded-md bg-white text-right" placeholder="أدخل الإسم">
+                </div>
+
+                <div class="mb-4">
+                    <label for="country" class="block text-sm font-medium text-gray-700 mb-1">الدولة:</label>
+                    <input type="text" id="country" x-model="formData.pays"
+                           :class="{'border-red-500': !formData.pays && errorMessage}" 
+                           class="w-full px-4 py-2 border-2 border-gray-500 rounded-md bg-white text-right" placeholder="أدخل الدولة">
+                </div>
+
+                <div class="mb-4">
+                    <label for="parts" class="block text-sm font-medium text-gray-700 mb-1">الأجزاء:</label>
+                    <input type="number" id="parts" x-model="formData.ajza" min="1"
+                           :class="{'border-red-500': !formData.ajza && errorMessage}" 
+                           class="w-full px-4 py-2 border-2 border-gray-500 rounded-md bg-white text-right" placeholder="أدخل عدد الأجزاء">
+                </div>
+
+                <div class="flex justify-between gap-4">
+                    <button @click="saveCandidat()" class="flex-1 bg-blue-500 text-white py-2 rounded-md">تأكيد</button>
+                    <button @click="resetForm(); showModal = false" class="flex-1 bg-gray-400 text-white py-2 rounded-md">إلغاء</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modale Importation Excel -->
+        <div x-show="showImportModal" class="fixed inset-0 bg-gray-500 bg-opacity-50 flex justify-center items-center" @click="showImportModal = false" x-cloak>
+            <div @click.stop class="bg-white p-6 rounded-lg shadow-lg w-11/12 sm:w-2/3 lg:w-1/2">
+                <h2 class="text-xl font-bold text-center mb-4 text-gray-700">استيراد المرشحين من ملف Excel</h2>
+                
+                <template x-if="importErrorMessage">
+                    <div class="mb-4 text-red-600 bg-red-100 border border-red-300 rounded px-4 py-2 text-sm text-right shadow-md">
+                        <span x-text="importErrorMessage"></span>
+                    </div>
+                </template>
+
+                <input id="excelFileInput" type="file" accept=".xlsx,.xls" @change="handleFileUpload($event)" class="mb-4 w-full text-sm text-gray-600" />
+
+                <!-- Aperçu -->
+                <template x-if="excelPreview.length > 0">
+                    <div class="bg-gray-50 p-3 rounded border mb-4 overflow-auto max-h-60 text-sm">
+                        <div class="font-bold text-gray-700 mb-2">معاينة البيانات:</div>
+                        <table class="w-full text-right border border-gray-300 text-xs">
+                            <thead>
+                                <tr class="bg-gray-100">
+                                    <th class="border px-2 py-1 text-center">الأجزاء</th>
+                                    <th class="border px-2 py-1 text-center">الدولة</th>
+                                    <th class="border px-2 py-1 text-center">الإسم</th>
+                                    <th class="border px-2 py-1 text-center">Id</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="row in excelPreview.slice(0, 10)" :key="row.id">
+                                    <tr>
+                                        <td class="border px-2 py-1 text-center" x-text="row.ajza"></td>
+                                        <td class="border px-2 py-1 text-center" x-text="row.pays"></td>
+                                        <td class="border px-2 py-1 text-center" x-text="row.nom"></td>
+                                        <td class="border px-2 py-1 text-center" x-text="row.id"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                        <div class="text-xs text-gray-500 mt-1" x-show="excelPreview.length > 10">+ <span x-text="excelPreview.length - 10"></span> مرشحين إضافيين...</div>
+                    </div>
+                </template>
+
+                <div class="flex justify-between gap-4">
+                    <button x-show="excelPreview.length > 0" @click="confirmImportFromExcel" class="flex-1 bg-green-600 text-white py-2 rounded">استيراد الآن</button>
+                    <button @click="excelPreview = []; showImportModal = false" class="flex-1 bg-gray-400 text-white py-2 rounded">إلغاء</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Snackbar -->
+        <div x-show="snackbarVisible" class="fixed top-1/3 left-1/2 transform -translate-x-1/2 mb-4 px-4 py-2 bg-blue-100 border-2 border-gray-500 text-black rounded-lg shadow-2xl shadow-black/40 flex justify-between items-center w-auto sm:w-1/3 space-x-4" x-cloak>
+            <span x-text="snackbarMessage"></span>
+            <button x-show="typeof snackbarAction === 'function'" @click="snackbarAction(); snackbarVisible = false" class="ml-4 underline font-bold">إلغاء</button>
+        </div>
+
+        <!-- Boîte de confirmation personnalisée -->
+        <div x-show="confirmDelete.visible" class="fixed inset-0 bg-black bg-opacity-50 shadow-2xl shadow-black/40 flex items-center justify-center z-50" x-cloak>
+            <div class="bg-white p-6 rounded shadow-md text-center w-80">
+                <h2 class="text-xl font-bold mb-4">حذف</h2>
+                <p class="mb-6">هل أنت متأكد من حذف هذا المرشح؟</p>
+                <div class="flex justify-center gap-4">
+                    <button @click="confirmDelete.confirm()" class="bg-blue-500 text-white px-5 font-bold py-1 rounded">نعم</button>
+                    <button @click="confirmDelete.visible = false" class="bg-red-500 text-white px-5 font-bold py-1 rounded">إلغاء</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

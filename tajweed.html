@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+	<script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js';</script>
+    <title>تصحيح التجويد</title>
+    <style>
+        input[type="checkbox"]:checked::before {
+            content: "✗";
+            color: red;
+            font-size: 1.2em;
+            font-weight: bold;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        input[type="checkbox"] {
+            position: relative;
+            appearance: none;
+            width: 1.2em;
+            height: 1.2em;
+            border: 2px solid #6b7280;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .fixed-width {
+            width: 990px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .active {
+            border-bottom: 3px solid #007BFF;
+            font-weight: bold;
+            background-color: #e0f2fe;
+            border-radius: 5px;
+        }
+        select:focus {
+            border-color: #3b82f6 !important;
+            outline: none;
+        }
+    </style>
+
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.store('tajweed', {
+                selectedCandidate: "",
+                activeTab: 'tajweed',
+                scores: [10, 10, 10],
+                totalScore: 30,
+                loading: false,
+                annulations: [false, false, false],
+                errors: [
+                    { jali: Array(12).fill(false), khafi: Array(16).fill(false) },
+                    { jali: Array(12).fill(false), khafi: Array(16).fill(false) },
+                    { jali: Array(12).fill(false), khafi: Array(16).fill(false) }
+                ],
+                previousErrors: [
+                    { jali: [], khafi: [], active: false },
+                    { jali: [], khafi: [], active: false },
+                    { jali: [], khafi: [], active: false }
+                ],
+                calculateScores() {
+                    this.totalScore = 30;
+                    for (let i = 0; i < 3; i++) {
+                        const jali = this.errors[i].jali.filter(Boolean).length * 0.5;
+                        const khafi = this.errors[i].khafi.filter(Boolean).length * 0.25;
+                        this.scores[i] = 10 - (jali + khafi);
+                        this.totalScore -= (jali + khafi);
+                    }
+                },
+                resetFields() {
+                    this.selectedCandidate = "";
+                    document.getElementById("candidatSelect").selectedIndex = 0;
+                    this.scores = [10, 10, 10];
+                    this.totalScore = 30;
+                    this.errors = [
+                        { jali: Array(12).fill(false), khafi: Array(16).fill(false) },
+                        { jali: Array(12).fill(false), khafi: Array(16).fill(false) },
+                        { jali: Array(12).fill(false), khafi: Array(16).fill(false) }
+                    ];
+                }
+            });
+        });
+    </script>
+
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.store('toast', {
+                show: false,
+                message: '',
+                type: 'success',
+                timeout: null,
+
+                trigger(message, type = 'success') {
+                    this.message = message;
+                    this.type = type;
+                    this.show = true;
+
+                    clearTimeout(this.timeout);
+                    this.timeout = setTimeout(() => {
+                        this.show = false;
+                    }, 4000);
+                }
+            });
+        });
+
+        window.showToast = function(message, type = 'success') {
+            Alpine.store('toast').trigger(message, type);
+        };
+    </script>
+</head>
+<body x-data="$store.tajweed" class="bg-white p-6">
+    <div class="bg-white shadow-md fixed top-0 left-0 w-full z-50">
+        <div class="p-4 flex items-center justify-between">
+            <h1 class="text-xl font-bold">تصحيح التجويد</h1>
+            <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">تسجيل الخروج</button>
+        </div>
+        <div class="p-2 flex space-x-2 rtl:space-x-reverse text-center">
+  	  	<button @click="activeTab = 'tajweed'" :class="{ 'active': activeTab === 'tajweed' }" class="tab p-2 text-blue-700 rounded transition">تقييم التلاوة</button>
+    		<button x-show="selectedCandidate" @click="activeTab = 'other'" :class="{ 'active': activeTab === 'other' }" class="tab p-2 text-blue-700 rounded transition">عرض صفحة القرآن</button>
+		</div>
+	</div><div class="h-36"></div>
+
+    <div x-show="loading" class="fixed inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50" x-cloak>
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+    </div>
+    
+	<div x-show="activeTab === 'tajweed'" x-cloak>
+		<div class="mb-4 flex items-center gap-2">
+            <label class="block text-lg font-bold whitespace-nowrap">قائمة المرشحين :</label>
+            <select id="candidatSelect" class="border p-2 rounded w-64" @change="selectedCandidate = $event.target.value">
+                <option value="">حدد مرشحًا</option>
+            </select>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full border-collapse border border-gray-400 text-center">
+                <thead>
+                    <tr class="bg-white">
+                        <th class="p-2 border-r-0 border-t-0 w-28"></th>
+                        <th class="border border-gray-400 p-2 w-48">السؤال الأول</th>
+                        <th class="border border-gray-400 p-2 w-48">السؤال الثاني</th>
+                        <th class="border border-gray-400 p-2 w-48">السؤال الثالث</th>
+                        <th class="border border-gray-400 p-2 w-24">المجموع (30)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="bg-white">
+                        <td class="border border-gray-400 border-t-0 p-2 font-bold w-28">لحن الجلي - 0.50</td>
+                        <template x-for="(_, index) in scores" :key="index">
+                            <td class="border border-gray-400 p-2 w-48">
+                                <div class="flex flex-wrap justify-center gap-1">
+                                    <template x-for="i in 12" :key="i">
+                                        <input type="checkbox" x-model="errors[index].jali[i-1]" @change="calculateScores()" class="m-1" :disabled="!selectedCandidate || annulations[index]">
+                                    </template>
+                                </div>
+                            </td>
+                        </template>
+                        <td class="border border-gray-400 p-2 font-bold text-lg w-24" rowspan="4" x-text="totalScore + '/30'"></td>
+                    </tr>
+
+                    <tr class="bg-white">
+                        <td class="border border-gray-400 p-2 font-bold w-28">لحن الخفي - 0.25</td>
+                        <template x-for="(_, index) in scores" :key="index">
+                            <td class="border border-gray-400 p-2 w-48">
+                                <div class="flex flex-wrap justify-center gap-1">
+                                    <template x-for="i in 16" :key="i">
+                                        <input type="checkbox" x-model="errors[index].khafi[i-1]" @change="calculateScores()" class="m-1" :disabled="!selectedCandidate || annulations[index]">
+                                    </template>
+                                </div>
+                            </td>
+                        </template>
+                    </tr>
+
+                    <tr>
+                        <td class="border border-gray-400 p-2 font-bold bg-white w-28">المجموع</td>
+                        <template x-for="(score, index) in scores" :key="index">
+                            <td class="border border-gray-400 p-2 text-lg font-bold w-48" x-text="score + '/10'"></td>
+                        </template>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="flex justify-center relative mt-4">
+            <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-1/4" @click="window.validateScores()">تأكيد</button>
+            <div x-data x-show="$store.toast.show" x-text="$store.toast.message" :class="{
+              'bg-green-500': $store.toast.type === 'success',
+              'bg-red-500': $store.toast.type === 'error'
+            }" class="absolute -top-12 left-1/2 transform -translate-x-1/2 text-white px-4 py-2 rounded shadow-lg z-50" x-cloak>
+            </div>
+        </div>
+	</div>
+	
+	<div x-show="activeTab === 'other'" x-cloak x-data="{ loaded: false }" x-init="$watch('activeTab', async val => {
+		if (val === 'other' && !loaded) {
+    		const res = await fetch('document.html');
+    		const html = await res.text();
+    		const container = $refs.container;
+    		container.innerHTML = html;
+    		const scripts = container.querySelectorAll('script');
+    		scripts.forEach(oldScript => {
+      		const newScript = document.createElement('script');
+      		if (oldScript.src) {
+        		newScript.src = oldScript.src;
+        		newScript.defer = oldScript.defer;
+      		} else {
+        		newScript.textContent = oldScript.textContent;
+      		}
+      		document.body.appendChild(newScript);
+    		});
+    		Alpine.initTree(container);
+    		loaded = true;
+  		}
+		})">
+		<div x-ref="container"></div>
+	</div>
+             
+    <footer class="bg-white border-t mt-10 py-4 text-center text-sm text-gray-600">
+        <p>© 2025 مسابقة الريان - جميع الحقوق محفوظة</p>
+        <p class="mt-1">تم التطوير بواسطة Day06 - 
+            <a href="https://wa.me/261327189552" class="text-blue-500 hover:underline" target="_blank">واتساب</a>
+        </p>
+    </footer>
+
+    <!-- Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js";
+        import { getDatabase, ref, get, set, update, onValue } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-auth.js";        
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDP9EM5fld8tUradGbGVo-9LaAe4q0l6vQ",
+            authDomain: "correctionconcours.firebaseapp.com",
+            databaseURL: "https://correctionconcours-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "correctionconcours",
+            storageBucket: "correctionconcours.appspot.com",
+            messagingSenderId: "117965376477",
+            appId: "1:117965376477:web:a59362c9757f5f4bba0434"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const auth = getAuth(app);
+        
+        onAuthStateChanged(auth, (user) => {
+            if (!user) {
+                window.location.href = 'login.html';
+            }
+        });
+
+        const candidatsRef = ref(db, 'candidats');
+        const notesRef = ref(db, 'notes');
+        const loggedInUser = localStorage.getItem('loggedInUser');
+        const userRole = localStorage.getItem('userRole');
+        const userRef = ref(db, 'utilisateurs/' + loggedInUser);
+
+        async function startLastSeenUpdate(loggedInUser) {
+            const updateLastSeen = () => update(userRef, { lastSeen: Date.now() });
+            updateLastSeen();
+            setInterval(updateLastSeen, 60 * 1000);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!loggedInUser || userRole !== "التجويد") {
+                alert("ليس لديك صلاحية للوصول إلى هذه الصفحة !");
+                window.location.href = 'login.html';
+                return;
+            }
+            startLastSeenUpdate(loggedInUser);
+        });
+
+        import { signOut } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-auth.js";        
+        window.logout = async function () {            
+            await update(userRef, { lastSeen: Date.now() - 6 * 60 * 1000 });
+            await signOut(auth);
+
+            localStorage.removeItem('loggedInUser');
+            localStorage.removeItem('userRole');
+            window.location.href = 'login.html';
+        };
+
+        const numerosRef = ref(db, 'numeros');
+		let numerosData = {};
+		
+		onValue(numerosRef, (snapshot) => {
+    		numerosData = snapshot.val() || {};
+    		chargerCandidats();
+		});
+
+		async function chargerCandidats() {
+    		const candidatsSnapshot = await get(ref(db, 'candidats'));
+    		const notesSnapshot = await get(ref(db, 'notes'));
+
+    		const candidatsData = candidatsSnapshot.val() || {};
+    		const notesData = notesSnapshot.val() || {};
+
+    		const selectElement = document.getElementById("candidatSelect");
+    		selectElement.innerHTML = '<option value="">حدد مرشحًا</option>';
+
+   		 Object.entries(numerosData).forEach(([numeroId, numero]) => {
+       		 const candidatId = numero.candidatId;
+
+				const numeroEntry = Object.values(numerosData).find(n => n.candidatId === candidatId);
+				if (numeroEntry) {
+    				window.injectedPages = {
+        				pageQ1: Number(numeroEntry.pageQ1 || 1),
+        				pageQ2: Number(numeroEntry.pageQ2 || 1),
+        				pageQ3: Number(numeroEntry.pageQ3 || 1)
+    				};
+    				window.injectedSurahs = {
+						pageQ1: numeroEntry.sourateQ1 || "",
+						pageQ2: numeroEntry.sourateQ2 || "",
+						pageQ3: numeroEntry.sourateQ3 || ""
+					};
+    				window.injectedVersets = {
+    					pageQ1: numeroEntry.versetQ1 || "",
+    					pageQ2: numeroEntry.versetQ2 || "",
+    					pageQ3: numeroEntry.versetQ3 || ""
+  				};
+				} else {
+    				window.injectedPages = { pageQ1: 1, pageQ2: 1, pageQ3: 1 };
+    				window.injectedVersets = {versetQ1: "", versetQ2: "", versetQ3: ""};
+    				window.injectedVersets = {sourateQ1: "", sourateQ2: "", sourateQ3: ""};
+				}
+
+      		  if (!numero.interroge_tajweed && candidatsData[candidatId]) {
+            		const candidat = candidatsData[candidatId];
+         		   const note = notesData[candidatId];
+          		  if (!note || note.notetajweed === 0) {
+                		const option = document.createElement("option");
+              		  option.value = candidatId;
+              		  option.textContent = candidat.nom;
+             		   selectElement.appendChild(option);
+           		 }
+     		   }
+    		});
+    		window.allCandidats = candidatsData;
+  		  window.allNotes = notesData;
+		}
+
+        window.validateScores = async function () {
+            const store = Alpine.store("tajweed");
+            const selectedId = document.getElementById("candidatSelect").value;
+            const noteTajweed = store.totalScore;
+
+            if (!selectedId) {
+                showToast("يرجى تحديد المرشح", "error");
+                return;
+            }
+
+            store.loading = true;
+            const candidatRef = ref(db, 'candidats/' + selectedId);
+            const snapshot = await get(candidatRef);
+
+            if (!snapshot.exists()) {
+                showToast("المرشح غير موجود", "error");
+                store.loading = false;
+                return;
+            }
+
+            const data = snapshot.val();
+            const noteSnap = await get(ref(db, 'notes/' + selectedId));
+            const noteData = noteSnap.exists() ? noteSnap.val() : {};
+            
+            const noteSawt = noteData.notesawt || 0;
+            const noteHafz = noteData.notehafz || 0;
+            const noteTotale = noteTajweed + noteSawt + noteHafz;
+
+            const noteRef = ref(db, 'notes/' + selectedId);
+            await set(noteRef, {
+                id: Number(selectedId),
+                nom: data.nom,
+                pays: data.pays,
+                ajza: data.ajza,
+                notetajweed: noteTajweed,
+                notesawt: noteSawt,
+                notehafz: noteHafz,
+                notetotale: noteTotale
+            });
+            
+            const numeroToUpdate = Object.entries(numerosData).find(
+    			([_, entry]) => entry.candidatId == selectedId
+			);
+			if (numeroToUpdate) {
+   			 const [numeroId] = numeroToUpdate;
+  			  await update(ref(db, 'numeros/' + numeroId), { interroge_tajweed: true });
+			};
+
+            showToast("تم تسجيل درجة التجويد بنجاح !", "success");
+            store.resetFields();
+            store.loading = false;
+        };
+
+        function setupRealtimeListeners() {
+            const store = Alpine.store('tajweed');
+            const candidatSelect = document.getElementById('candidatSelect');
+            let currentListenerRef = null;
+
+            candidatSelect.addEventListener('change', () => {
+                const candidatId = candidatSelect.value;
+
+                if (currentListenerRef) {
+                    off(currentListenerRef);
+                    currentListenerRef = null;
+                }
+
+                if (!candidatId) return;
+
+                for (let i = 0; i < 3; i++) {
+                    store.annulations[i] = false;
+                    store.errors[i].jali = Array(12).fill(false);
+                    store.errors[i].khafi = Array(16).fill(false);
+                    store.previousErrors[i].jali = [];
+                    store.previousErrors[i].khafi = [];
+                }
+                store.calculateScores();
+
+                const annuleRef = ref(db, 'notes/' + candidatId);
+
+                onValue(annuleRef, (snapshot) => {
+                    const data = snapshot.val();
+                    if (!data) return;
+
+                    const store = Alpine.store('tajweed');
+
+                    for (let i = 0; i < 3; i++) {
+                        const annulée = data['annulequestion' + (i + 1)] === true;
+
+                        if (annulée && !store.annulations[i]) {
+                            store.previousErrors[i].jali = [...store.errors[i].jali];
+                            store.previousErrors[i].khafi = [...store.errors[i].khafi];
+                            store.previousErrors[i].active = true;
+                            store.errors[i].jali = store.errors[i].jali.map(() => true);
+                            store.errors[i].khafi = store.errors[i].khafi.map(() => true);
+                        } else if (!annulée && store.annulations[i]) {
+                            if (store.previousErrors[i].active) {
+                                store.errors[i].jali = [...store.previousErrors[i].jali];
+                                store.errors[i].khafi = [...store.previousErrors[i].khafi];
+                                store.previousErrors[i].active = false;
+                            }
+                        }
+                        store.annulations[i] = annulée;
+                    }
+                    store.calculateScores();
+                });
+            });
+        }
+        setupRealtimeListeners();
+    </script>
+</body>
+</html>

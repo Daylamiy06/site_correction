@@ -1,0 +1,97 @@
+<div dir="ltr" x-data="pdfViewer()" x-init="init()" class="w-full max-w-5xl mx-auto p-4 bg-gray-100 rounded shadow">
+  <div class="flex justify-center gap-4 mb-4">
+    <button @click="goToPage(pages.pageQ3); activeKey = 'pageQ3'" :class="activeKey === 'pageQ3' ? 'text-blue-700 border-b-4 border-blue-500 font-bold bg-sky-100 rounded-md' : 'text-blue-700'" class="p-2 rounded">السؤال الثالث</button>
+	<button @click="goToPage(pages.pageQ2); activeKey = 'pageQ2'" :class="activeKey === 'pageQ2' ? 'text-blue-700 border-b-4 border-blue-500 font-bold bg-sky-100 rounded-md' : 'text-blue-700'" class="p-2 rounded">السؤال الثاني</button>
+	<button @click="goToPage(pages.pageQ1); activeKey = 'pageQ1'" :class="activeKey === 'pageQ1' ? 'text-blue-700 border-b-4 border-blue-500 font-bold bg-sky-100 rounded-md' : 'text-blue-700'" class="p-2 rounded">السؤال الأول</button>
+  </div>
+
+  <div class="text-right text-green-700 font-bold text-lg my-2" x-text="getFullAyahLabel(activeKey)"></div>
+
+  <div id="pdf-container" class="relative">
+    <canvas id="pdf-canvas" class="border shadow bg-white rounded max-w-full mx-auto block"></canvas>
+  </div>
+
+  <div class="mt-4 flex gap-2">
+    <button @click="goToPage(page + 1)" :disabled="page >= totalPages" class="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50">التالي</button>
+    <button @click="goToPage(page - 1)" :disabled="page <= 1" class="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50">السابق</button>
+  </div>
+</div>
+
+<script>
+function pdfViewer() {
+  return {
+    pdfs: [],
+    page: 1,
+    totalPages: 0,
+    part1Pages: 0,
+    canvas: null,
+    context: null,
+    scale: 2,
+    pages: { pageQ1: 1, pageQ2: 1, pageQ3: 1 },
+    versetLabels: { pageQ1: "", pageQ2: "", pageQ3: "" },
+    surahLabels: { pageQ1: "", pageQ2: "", pageQ3: "" },
+    activeKey: 'pageQ1',
+
+    async init() {
+      if (window.injectedPages) this.pages = { ...this.pages, ...window.injectedPages };
+      if (window.injectedVersets) this.versetLabels = { ...this.versetLabels, ...window.injectedVersets };
+      if (window.injectedSurahs) this.surahLabels = { ...this.surahLabels, ...window.injectedSurahs };
+
+      const [pdf1, pdf2] = await Promise.all([
+        pdfjsLib.getDocument({ url: 'document_part1.pdf' }).promise,
+        pdfjsLib.getDocument({ url: 'document_part2.pdf' }).promise
+      ]);
+
+      this.pdfs = [pdf1, pdf2];
+      this.part1Pages = pdf1.numPages;
+      this.totalPages = pdf1.numPages + pdf2.numPages;
+
+      setTimeout(() => {
+        this.goToPage(this.pages.pageQ1);
+      }, 100);
+    },
+
+    getPdfAndPage(globalPage) {
+      return globalPage <= this.part1Pages
+        ? [this.pdfs[0], globalPage]
+        : [this.pdfs[1], globalPage - this.part1Pages];
+    },
+
+    convertToArabicDigits(str) {
+      return String(str).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
+    },
+
+    getFullAyahLabel(key) {
+      const surah = this.surahLabels[key] || "";
+      const verse = this.convertToArabicDigits(this.versetLabels[key] || "");
+      return `سورة ${surah}، الآية ${verse}`;
+    },
+
+    async renderPage(globalPage) {
+      const [pdf, pageNum] = this.getPdfAndPage(globalPage);
+      const page = await pdf.getPage(pageNum);
+      const canvas = document.getElementById('pdf-canvas');
+      const context = canvas.getContext('2d');
+      const outputScale = window.devicePixelRatio || 1;
+      const viewport = page.getViewport({ scale: this.scale * outputScale });
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      canvas.style.width = `${viewport.width / outputScale}px`;
+      canvas.style.height = `${viewport.height / outputScale}px`;
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      await page.render({
+        canvasContext: context,
+        viewport: viewport
+      }).promise;
+    },
+
+    goToPage(pageNum) {
+      if (pageNum >= 1 && pageNum <= this.totalPages) {
+        this.page = pageNum;
+        setTimeout(() => this.renderPage(pageNum), 100);
+      }
+    }
+  };
+}
+</script>

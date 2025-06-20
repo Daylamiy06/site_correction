@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>إدارة الدرجات</title>
+    <style>
+        .fixed-width { width: 990px; margin: auto; }
+        .name-column { width: 200px; }
+        .country-column { width: 150px; }
+        .id-column { width: 50px; }
+        .rank-column { width: 60px; }
+        .score-column { width: 90px; }        
+        #searchInput { flex-grow: 1; }
+        .filter-sort-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        tbody tr { border-bottom: 1px solid #555; }
+        tbody tr:last-child { border-bottom: none; }
+        th, td { border: 1px solid #666; }
+        input:focus, select:focus {
+            border-color: #3b82f6 !important;
+            outline: none;
+        }
+        @media print {
+            footer, #juzFilter,
+            #searchInput, .fa-user-shield,
+            .filter-sort-container, button, h1 {
+                display: none !important;
+            }
+            .shadow-md {
+                box-shadow: none !important;
+            }
+            body {
+                background: white;
+            }
+            table {
+                width: 100%;
+                font-size: 14px;
+                direction: rtl;
+            }
+            .p-2 {
+                padding: 4px !important;
+            }
+            tr, td, th {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex justify-center items-center min-h-screen">
+    <div class="bg-white p-6 shadow-md rounded-lg w-full max-w-[1000px] md:max-w-none"
+        x-data="{
+            notes: [],
+            ajzaList: [],
+            selectedAjza: '',
+            searchQuery: '',
+            isLoading: true,
+            get filteredNotes() {
+                let list = this.notes;
+                if (this.selectedAjza) {
+                    list = list.filter(c => c.ajza === parseInt(this.selectedAjza));
+                }
+                if (this.searchQuery.trim()) {
+                    const query = this.searchQuery.toLowerCase();
+                    list = list.filter(c =>
+                        c.nom.toLowerCase().includes(query) ||
+                        c.pays.toLowerCase().includes(query)
+                    );
+                }
+                return list;
+            },
+            get sortedNotes() {
+                return [...this.filteredNotes].sort((a, b) => a.rank - b.rank);
+            }
+        }"
+        x-init="
+            fetchnotes(data => {
+                let grouped = {};
+                data.forEach(c => {
+                    if (!grouped[c.ajza]) grouped[c.ajza] = [];
+                    grouped[c.ajza].push(c);
+                });
+                Object.keys(grouped).forEach(ajza => {
+                    grouped[ajza]
+                        .sort((a, b) => b.notetotale - a.notetotale)
+                        .forEach((c, i) => c.rank = i + 1);
+                });
+                notes = data;
+                ajzaList = [...new Set(data.map(c => c.ajza))].sort((a, b) => a - b);
+                isLoading = false;
+            });
+        ">
+
+        <!-- Spinner -->
+        <div x-show="isLoading" class="fixed inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50" x-cloak>
+            <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+        </div>
+
+        <!-- Contenu principal -->
+        <template x-if="!isLoading">
+            <div>
+                <h1 class="text-2xl font-bold mb-4 text-center">إدارة الدرجات</h1>
+
+                <div class="filter-sort-container">
+                    <select id="juzFilter" x-model="selectedAjza"
+                        class="w-[150px] h-11 px-3 border-2 border-gray-500 rounded-md bg-gray-200 text-right text-base">
+                        <option value="">تصفية حسب الجزء</option>
+                        <template x-for="ajza in ajzaList" :key="ajza">
+                            <option :value="ajza" x-text="ajza"></option>
+                        </template>
+                    </select>
+                    <input id="searchInput" type="text" x-model="searchQuery" placeholder="بحث بالاسم أو الدولة..."
+                        class="w-full sm:w-1/2 max-w-sm mr-auto px-4 py-2 border-2 border-gray-500 rounded-md bg-white text-right placeholder:text-right">
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse border border-gray-400 text-center">
+                        <thead>
+                            <tr class="bg-gray-200">
+                                <th class="p-2" x-show="!selectedAjza">الأجزاء</th>
+                                <th class="p-2 rank-column">الترتيب</th>
+                                <th class="p-2 score-column">التقدير</th>
+                                <th class="p-2">المجموع الكلي<br>للأداء و الصوت</th>
+                                <th class="p-2">المجموع الكلي<br>للتجويد</th>
+                                <th class="p-2">المجموع الكلي<br>للحفظ</th>
+                                <th class="p-2 country-column">الدولة</th>
+                                <th class="p-2 name-column">الإسم</th>
+                                <th class="p-2 id-column">Id</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr x-show="sortedNotes.length === 0">
+                                <td class="p-4 text-center text-gray-500" :colspan="selectedAjza ? 8 : 9">
+                                    لا توجد بيانات لعرضها حالياً.
+                                </td>
+                            </tr>
+                            <template x-for="candidat in sortedNotes" :key="candidat.id">
+                                <tr>
+                                    <td class="p-2" x-text="candidat.ajza" x-show="!selectedAjza"></td>
+                                    <td class="p-2" x-text="candidat.rank"></td>
+                                    <td class="p-2" x-text="`${candidat.notetotale}/100`"></td>
+                                    <td class="p-2" x-text="`${candidat.notesawt}/25`"></td>
+                                    <td class="p-2" x-text="`${candidat.notetajweed}/30`"></td>
+                                    <td class="p-2" x-text="`${candidat.notehafz}/45`"></td>
+                                    <td class="p-2" x-text="candidat.pays"></td>
+                                    <td class="p-2" x-text="candidat.nom"></td>
+                                    <td class="p-2" x-text="candidat.id"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-4 text-right">
+                    <button
+                        onclick="window.print()"
+                        class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        :disabled="sortedNotes.length === 0">    طباعة الجدول
+                    </button>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <script type="module">
+        window.fetchnotes = function(callback) {
+            try {
+                onValue(ref(db, 'notes'), (snapshot) => {
+                    const data = snapshot.val() || {};
+                    const result = Object.values(data);
+                    callback(result);
+                }, (error) => {
+                    alert("خطأ في تحميل البيانات: " + error.message);
+                });
+            } catch (e) {
+                alert("فشل في الاتصال بـ Firebase");
+            }
+        };
+    </script>
+</body>
+</html>
