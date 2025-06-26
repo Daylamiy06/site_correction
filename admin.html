@@ -179,21 +179,20 @@
                 });
         },
         demanderConfirmation(noeud) {
-            const nom = noeud === 'candidats' ? 'المرشحين' : 'الدرجات';
-
-            this.confirmDelete.message = `هل أنت متأكد من حذف جميع البيانات في ${nom} ؟`;
+            const nom = { candidats: 'المرشحين', notes: 'الدرجات', numeros: 'أرقام الأسئلة' }[noeud] || '';
+            this.confirmDelete.message = `هل أنت متأكد من حذف جميع البيانات من ${nom}؟`;
             this.confirmDelete.visible = true;
             this.confirmDelete.confirm = () => {
                 this.confirmDelete.visible = false;
 
                 // Afficher la seconde confirmation critique
-                this.confirmationCritique.message = `أنت على وشك حذف جميع بيانات ${nom} نهائيًا. هذا الإجراء لا يمكن التراجع عنه وسيؤدي إلى فقدان كل المعلومات المرتبطة بشكل دائم. هل أنت متأكد بنسبة 100٪ من أنك تريد تنفيذ هذا الحذف الخطير ؟`;
+                this.confirmationCritique.message = `سيتم حذف ${nom} نهائيًا. لا يمكن التراجع عن هذا الإجراء، وسيؤدي إلى فقدان دائم لجميع المعلومات المرتبطة. هل أنت متأكد بنسبة 100٪ من رغبتك في تنفيذ هذا الحذف؟`;
                 this.confirmationCritique.visible = true;
                 this.confirmationCritique.confirm = async () => {
                     this.confirmationCritique.visible = false;
 
                     const { db } = await window.initFirebase();
-                    const { ref, remove } = await import('https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js');
+                    const { ref, remove, get } = await import('https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js');
 
                     // Supprimer le noeud sélectionné 
                     await remove(ref(db, noeud));
@@ -201,6 +200,21 @@
                     // Si on supprime tous les candidats, on supprime aussi toutes les notes
                     if (noeud === 'candidats') {
                         await remove(ref(db, 'notes'));
+                        
+                        // Supprimer des champs spécifiques dans 'numeros'
+    					const numerosRef = ref(db, 'numeros');
+    					const snapshot = await get(numerosRef);
+    					if (snapshot.exists()) {
+        					const numerosData = snapshot.val();
+        					const champsASupprimer = ['candidatId', 'interroge_hafz', 'interroge_sawt', 'interroge_tajweed'];
+        					for (const [key, value] of Object.entries(numerosData)) {
+            					for (const champ of champsASupprimer) {
+            						if (value.hasOwnProperty(champ)) {
+                						await remove(ref(db, `numeros/${key}/${champ}`));
+            						}
+        						}
+        					}
+    					}
                     }
 
                     this.$refs.optionsDetails.open = false;
@@ -262,8 +276,9 @@
                 <details x-ref="optionsDetails">
                     <summary class="cursor-pointer hover:underline">خيارات متقدمة</summary>
                     <div class="mt-2 space-y-1 text-center">
+                    	<button @click="demanderConfirmation('notes')" class="text-red-600 hover:underline">حذف جميع الدرجات</button><br>
                         <button @click="demanderConfirmation('candidats')" class="text-red-600 hover:underline">حذف جميع المرشحين</button><br>
-                        <button @click="demanderConfirmation('notes')" class="text-red-600 hover:underline">حذف جميع الدرجات</button><br>
+                        <button @click="demanderConfirmation('numeros')" class="text-red-600 hover:underline">حذف جميع أرقام الأسئلة</button><br>
                     </div>
                 </details>
                 <!-- Snackbar -->
