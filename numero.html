@@ -107,11 +107,12 @@
 		<div x-show="!numeros.length" class="text-gray-500 col-span-full text-center py-8">لا توجد أرقام مسجلة حالياً.</div>
 	</div>
 
-  <!-- Modale -->
-  <div x-show="showModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50" @click="showModal = false" x-cloak>
-  <div @click.stop x-ref="modalContent" class="bg-white p-6 rounded shadow w-11/12 sm:w-4/5 md:w-2/3"
+<!-- Modale -->
+<div x-show="showModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50" @click="showModal = false" x-cloak>
+  <div @click.stop x-ref="modalContent" class="bg-white p-6 rounded shadow w-11/12 sm:w-4/5 md:w-2/3 max-h-[80vh] flex flex-col"
   x-data="{
     sourates: [],
+    pages: [],
     ajza: [],
     candidats: [],
     ajzaSel: '',
@@ -134,16 +135,47 @@
     async init() {
       const {db} = await window.initFirebase();
       const {ref, get} = await import('https://www.gstatic.com/firebasejs/11.5.0/firebase-database.js');
+
+      // Charger sourates
       const snap = await get(ref(db, 'sourates'));
-      this.sourates = Object.entries(snap.val() || {}).map(([id, v]) => ({id, nom: v.sourate, versets: v.verset}));
+      this.sourates = Object.entries(snap.val() || {}).map(([id, v]) => ({
+        id,
+        nom: v.sourate,
+        versets: v.verset
+      }));
+
+      // Charger candidats
       const snap2 = await get(ref(db, 'candidats'));
       this.candidats = Object.values(snap2.val() || {});
+
+      // Charger pages
+      const snap3 = await get(ref(db, 'pages'));
+      this.pages = Object.values(snap3.val() || {}).map(p => ({
+        sourateId: String(p.sourateId),
+        verset_debut: Number(p.verset_debut),
+        verset_fin: Number(p.verset_fin),
+        page: Number(p.page)
+      }));
+
+      // Construire liste des ajza
       this.ajza = [...new Set(this.candidats.map(c => c.ajza).filter(Boolean))].sort((a, b) => a - b);
     },
     majVersets(q) {
       const s = this.sourates.find(x => x.id === q.sourateId);
       q.maxVersets = s ? s.versets : 0;
       q.verset = '';
+      q.page = ''; // vider la page quand on change de sourate
+    },
+    majPage(q) {
+      if (!q.sourateId || !q.verset) { q.page = ''; return; }
+      const sId = String(q.sourateId);
+      const versetNum = Number(q.verset);
+      const match = this.pages.find(p =>
+        String(p.sourateId) === sId &&
+        versetNum >= Number(p.verset_debut) &&
+        versetNum <= Number(p.verset_fin)
+      );
+      q.page = match ? match.page : '';
     },
     async confirmer() {
       if (!this.ajzaSel) {
@@ -243,7 +275,8 @@
       resetForm();
     }
   }">
-    <h2 class="text-2xl font-semibold text-center mb-4">إضافة رقم جديد</h2>
+  <div class="shadow-md w-full z-50 pl-4 pr-6">
+	<h2 class="text-2xl font-semibold text-center mb-4">إضافة رقم جديد</h2>
     <template x-if="errorMessage">
       <div class="mb-4 text-red-600 bg-red-100 border border-red-300 rounded px-4 py-2 text-sm text-right shadow-md">
         <span x-text="errorMessage"></span>
@@ -258,30 +291,40 @@
         </template>
       </select>
     </div>
-    <template x-for="(q, i) in questions" :key="i">
-      <div class="mb-6 border border-gray-300 p-4 rounded bg-gray-50">
-        <h2 class="text-lg font-bold text-blue-600 mb-4" x-text="q.label"></h2>
-        <label class="block mb-1">السورة</label>
-        <select x-model="q.sourateId" @change="majVersets(q)" :class="{'border-red-500': !q.sourateId && errorMessage}" class="w-full border-2 border-gray-500 p-2 rounded mb-2">
-          <option value="">-- اختر سورة --</option>
-          <template x-for="s in sourates" :key="s.id">
-            <option :value="s.id" x-text="s.nom"></option>
-          </template>
-        </select>
-        <label class="block mb-1">الآية</label>
-        <select x-model="q.verset" :class="{'border-red-500': !q.verset && errorMessage}" class="w-full border-2 border-gray-500 p-2 rounded mb-2">
-          <option value="">-- اختر آية --</option>
-          <template x-if="q.maxVersets>0">
-            <template x-for="n in q.maxVersets" :key="n">
-              <option :value="n" x-text="n"></option>
+  </div>
+    
+    <div class="flex-1 overflow-y-auto pr-2 space-y-6">
+      <template x-for="(q, i) in questions" :key="i">
+        <div class="border border-gray-300 p-4 rounded bg-gray-50">
+          <h2 class="text-lg font-bold text-blue-600 mb-4" x-text="q.label"></h2>
+          <label class="block mb-1">السورة</label>
+          <select x-model="q.sourateId" @change="majVersets(q)" :class="{'border-red-500': !q.sourateId && errorMessage}" class="w-full border-2 border-gray-500 p-2 rounded mb-2">
+            <option value="">-- اختر سورة --</option>
+            <template x-for="s in sourates" :key="s.id">
+              <option :value="s.id" x-text="s.nom"></option>
             </template>
-          </template>
-        </select>
-        <label class="block mb-1">الصفحة</label>
-        <input type="number" min="1" max="604" x-model="q.page" :class="{'border-red-500': !q.page && errorMessage}" class="w-full border-2 border-gray-500 p-2 rounded" />
-      </div>
-    </template>
-    <div class="flex justify-between gap-4">
+          </select>
+          <div class="flex gap-4 items-end">
+            <div class="flex-1">
+              <label class="block mb-1">الآية</label>
+              <select x-model="q.verset" @change="majPage(q)" :class="{'border-red-500': !q.verset && errorMessage}" class="w-full border-2 border-gray-500 p-2 rounded">
+                <option value="">-- اختر آية --</option>
+                <template x-if="q.maxVersets > 0">
+                  <template x-for="n in q.maxVersets" :key="n">
+                    <option :value="n" x-text="n"></option>
+                  </template>
+                </template>
+              </select>
+            </div>
+            <div class="w-24 text-center">
+              <label class="block mb-1">الصفحة</label>
+              <div class="border border-gray-300 rounded bg-gray-100 py-2" x-text="q.page || '-'"></div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+    <div class="flex justify-between gap-4 mt-4">
       <button @click="confirmer" class="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700">تأكيد</button>
       <button @click="showModal = false;" class="flex-1 bg-gray-400 text-white py-2 rounded">إلغاء</button>
     </div>
