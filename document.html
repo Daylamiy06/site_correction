@@ -1,96 +1,167 @@
 <div dir="ltr" x-data="pdfViewer()" x-init="init()" class="w-full max-w-5xl mx-auto p-4 bg-gray-100 rounded shadow">
   <div class="flex justify-center gap-4 mb-4">
-    <button @click="goToPage(pages.pageQ3); activeKey = 'pageQ3'" :class="activeKey === 'pageQ3' ? 'text-blue-700 border-b-4 border-blue-500 font-bold bg-sky-100 rounded-md' : 'text-blue-700'" class="p-2 rounded">السؤال الثالث</button>
-	<button @click="goToPage(pages.pageQ2); activeKey = 'pageQ2'" :class="activeKey === 'pageQ2' ? 'text-blue-700 border-b-4 border-blue-500 font-bold bg-sky-100 rounded-md' : 'text-blue-700'" class="p-2 rounded">السؤال الثاني</button>
-	<button @click="goToPage(pages.pageQ1); activeKey = 'pageQ1'" :class="activeKey === 'pageQ1' ? 'text-blue-700 border-b-4 border-blue-500 font-bold bg-sky-100 rounded-md' : 'text-blue-700'" class="p-2 rounded">السؤال الأول</button>
+    <button @click="goToPage(pages.pageQ3); activeKey='pageQ3'" :class="activeKey==='pageQ3'?'font-bold border-b-4 border-blue-500 bg-sky-100':''" class="text-blue-700 p-2 rounded">السؤال الثالث</button>
+    <button @click="goToPage(pages.pageQ2); activeKey='pageQ2'" :class="activeKey==='pageQ2'?'font-bold border-b-4 border-blue-500 bg-sky-100':''" class="text-blue-700 p-2 rounded">السؤال الثاني</button>
+    <button @click="goToPage(pages.pageQ1); activeKey='pageQ1'" :class="activeKey==='pageQ1'?'font-bold border-b-4 border-blue-500 bg-sky-100':''" class="text-blue-700 p-2 rounded">السؤال الأول</button>
   </div>
-
   <div class="text-right text-green-700 font-bold text-lg my-2" x-text="getFullAyahLabel(activeKey)"></div>
-
-  <div id="pdf-container" class="relative">
+  <!-- === Canvas === -->
+  <div class="relative">
     <canvas id="pdf-canvas" class="border shadow bg-white rounded max-w-full mx-auto block"></canvas>
   </div>
 
   <div class="mt-4 flex gap-2">
-    <button @click="goToPage(page + 1)" :disabled="page >= totalPages" class="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50">التالي</button>
-    <button @click="goToPage(page - 1)" :disabled="page <= 1" class="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50">السابق</button>
+    <button @click="goToPage(page + 1)" :disabled="page >= totalPages"
+      class="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50">التالي</button>
+    <button @click="goToPage(page - 1)" :disabled="page <= 1"
+      class="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50">السابق</button>
+  </div>
+  <!-- === Modale d’import === -->
+  <div x-show="showModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" x-transition>
+    <div class="bg-white rounded-lg shadow-lg p-6 max-w-sm w-full text-center">
+      <h2 class="text-xl font-semibold mb-3">📂 تحميل الملف</h2>
+      <p class="text-gray-600 mb-4">يرجى اختيار ملف PDF الخاص بك.</p>
+      <input type="file" accept="application/pdf" @change="importPdf($event)" class="block w-full border rounded p-2 mb-4">
+      <div class="flex justify-between gap-3">
+        <button @click="showModal=false" class="bg-gray-400 text-white px-4 py-2 rounded flex-1">إلغاء</button>
+      </div>
+      <p class="text-red-600 mt-3 text-sm" x-text="errorMsg"></p>
+    </div>
   </div>
 </div>
 
 <script>
+   // IndexedDB helper functions
+const DB_NAME = "LocalPDF_DB";
+const STORE = "files";
+
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = e => reject(e);
+  });
+}
+
+async function idbPut(key, blob) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).put(blob, key);
+    tx.oncomplete = () => res();
+    tx.onerror = e => rej(e);
+  });
+}
+
+async function idbGet(key) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, "readonly");
+    const req = tx.objectStore(STORE).get(key);
+    req.onsuccess = () => res(req.result);
+    req.onerror = e => rej(e);
+  });
+}
+
+async function idbDelete(key) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).delete(key);
+    tx.oncomplete = () => res();
+    tx.onerror = e => rej(e);
+  });
+}
+
 function pdfViewer() {
   return {
-    pdfs: [],
+    pdf: null,
+    pdfLoaded: false,
+    showModal: false,
+    errorMsg: "",
     page: 1,
     totalPages: 0,
-    part1Pages: 0,
-    canvas: null,
-    context: null,
     scale: 2,
+    activeKey: "pageQ1",
     pages: { pageQ1: 1, pageQ2: 1, pageQ3: 1 },
     versetLabels: { pageQ1: "", pageQ2: "", pageQ3: "" },
     surahLabels: { pageQ1: "", pageQ2: "", pageQ3: "" },
-    activeKey: 'pageQ1',
 
     async init() {
       if (window.injectedPages) this.pages = { ...this.pages, ...window.injectedPages };
       if (window.injectedVersets) this.versetLabels = { ...this.versetLabels, ...window.injectedVersets };
       if (window.injectedSurahs) this.surahLabels = { ...this.surahLabels, ...window.injectedSurahs };
 
-      const [pdf1, pdf2] = await Promise.all([
-        pdfjsLib.getDocument({ url: 'document_part1.pdf' }).promise,
-        pdfjsLib.getDocument({ url: 'document_part2.pdf' }).promise
-      ]);
-
-      this.pdfs = [pdf1, pdf2];
-      this.part1Pages = pdf1.numPages;
-      this.totalPages = pdf1.numPages + pdf2.numPages;
-
-      setTimeout(() => {
-        this.goToPage(this.pages.pageQ1);
-      }, 100);
+      try {
+        const blob = await idbGet("pdfFile");
+        if (blob) {
+          await this.loadPdf(blob);
+          this.pdfLoaded = true;
+        } else {
+          this.showModal = true;
+        }
+      } catch (err) {
+        console.error("Erreur IndexedDB:", err);
+        this.showModal = true;
+      }
     },
 
-    getPdfAndPage(globalPage) {
-      return globalPage <= this.part1Pages
-        ? [this.pdfs[0], globalPage]
-        : [this.pdfs[1], globalPage - this.part1Pages];
+    async importPdf(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (file.type !== "application/pdf") {
+        this.errorMsg = "الملف المحدد ليس بصيغة PDF.";
+        return;
+      }
+
+      try {
+        // Enregistrer dans IndexedDB
+        await idbPut("pdfFile", file);
+        this.showModal = false;
+        this.errorMsg = "";
+        await this.loadPdf(file);
+        this.pdfLoaded = true;
+      } catch (err) {
+        console.error("Erreur import:", err);
+        this.errorMsg = "فشل حفظ الملف. قد يكون كبيرًا جدًا.";
+      }
+    },
+
+    async loadPdf(blobOrFile) {
+      const arrayBuffer = blobOrFile instanceof Blob ? await blobOrFile.arrayBuffer() : blobOrFile;
+      this.pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      this.totalPages = this.pdf.numPages;
+      this.goToPage(this.pages.pageQ1);
+    },
+
+    async renderPage(num) {
+      const page = await this.pdf.getPage(num);
+      const canvas = document.getElementById("pdf-canvas");
+      const ctx = canvas.getContext("2d");
+      const scale = this.scale * (window.devicePixelRatio || 1);
+      const viewport = page.getViewport({ scale });
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      await page.render({ canvasContext: ctx, viewport }).promise;
+    },
+
+    goToPage(n) {
+      if (!this.pdf) return;
+      if (n >= 1 && n <= this.totalPages) {
+        this.page = n;
+        this.renderPage(n);
+      }
     },
 
     convertToArabicDigits(str) {
-      return String(str).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
+      return String(str).replace(/\d/g, d => "٠١٢٣٤٥٦٧٨٩"[d]);
     },
 
     getFullAyahLabel(key) {
       const surah = this.surahLabels[key] || "";
       const verse = this.convertToArabicDigits(this.versetLabels[key] || "");
       return `سورة ${surah}، الآية ${verse}`;
-    },
-
-    async renderPage(globalPage) {
-      const [pdf, pageNum] = this.getPdfAndPage(globalPage);
-      const page = await pdf.getPage(pageNum);
-      const canvas = document.getElementById('pdf-canvas');
-      const context = canvas.getContext('2d');
-      const outputScale = window.devicePixelRatio || 1;
-      const viewport = page.getViewport({ scale: this.scale * outputScale });
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      canvas.style.width = `${viewport.width / outputScale}px`;
-      canvas.style.height = `${viewport.height / outputScale}px`;
-      context.setTransform(1, 0, 0, 1, 0, 0);
-      context.clearRect(0, 0, canvas.width, canvas.height);
-      await page.render({
-        canvasContext: context,
-        viewport: viewport
-      }).promise;
-    },
-
-    goToPage(pageNum) {
-      if (pageNum >= 1 && pageNum <= this.totalPages) {
-        this.page = pageNum;
-        setTimeout(() => this.renderPage(pageNum), 100);
-      }
     }
   };
 }
