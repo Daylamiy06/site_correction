@@ -203,8 +203,23 @@
         const numerosRef = ref(db, 'numeros');
         const snapshot = await get(numerosRef);
         const allNumeros = snapshot.val() || {};
-
         const existantKeys = new Set();
+        const localKeys = new Set();
+
+		for (let i = 1; i <= 3; i++) {
+  		const s = dataToSave[`sourateQ${i}`];
+  		const v = dataToSave[`versetQ${i}`];
+
+  		if (s && v) {
+    		const key = `${s}:${v}`;
+    		if (localKeys.has(key)) {
+      		this.errorMessage = `لا يمكن اختيار نفس الآية أكثر من مرة (سورة ${s}، آية ${v}).`;
+      		return;
+    		}
+    		localKeys.add(key);
+  		}
+		}
+
         for (const id in allNumeros) {
           if (numeroSelectionne && id === String(numeroSelectionne.id)) continue;
           const enreg = allNumeros[id];
@@ -221,25 +236,48 @@
           const s = dataToSave[`sourateQ${i}`];
           const v = +dataToSave[`versetQ${i}`];
           if (s && v && existantKeys.has(`${s}:${v}`)) {
-            this.errorMessage = `القسم (سورة: ${s}, آية: ${v}) موجود مسبقًا.`;
+            this.errorMessage = `الآية ${v} من سورة ${s} موجودة بالفعل.`;
             return;
           }
         }
 
-        const candidatsAjza = this.candidats.filter(c => c.ajza == this.ajzaSel);
-        const totalAjza = candidatsAjza.length || 1;
-        const existants = Object.values(allNumeros)
-          .filter(e => e.ajza === dataToSave.ajza)
-          .map(e => +e.numero);
+        function plages() {
+  		const p = [];
+  		for (let i = 1; i <= 90; i += 10) {
+    		p.push([i, i + 9]);
+  		}
+  		for (let i = 100; i <= 900; i += 100) {
+    		p.push([i, i + 99]);
+  		}
+  		return p;
+		}
 
-        if (!numeroSelectionne) {
-          const possibles = [...Array(totalAjza)].map((_, i) => i + 1).filter(n => !existants.includes(n));
-          if (!possibles.length) {
-            this.errorMessage = 'لا يمكن إضافة رقم جديد لهذا الجزء، لأن كل الأرقام الممكنة قد تم توزيعها على المرشحين بالفعل.';
-            return;
-          }
-          dataToSave.numero = possibles[Math.floor(Math.random() * possibles.length)];
-        }
+		const utilises = new Set(
+  		Object.values(allNumeros)
+    		.filter(n => n.ajza === dataToSave.ajza)
+    		.map(n => n.numero)
+		);
+
+		let numero = null;
+
+		for (const [min, max] of plages()) {
+  		const libres = [];
+  		for (let n = min; n <= max; n++) {
+    		if (!utilises.has(n)) libres.push(n);
+  		}
+
+  		if (libres.length) {
+    		numero = libres[Math.floor(Math.random() * libres.length)];
+    		break;
+  		}
+		}
+
+		if (numero === null) {
+  		this.errorMessage = 'Tous les numéros sont déjà utilisés pour ce juz’.';
+  		return;
+		}
+
+		dataToSave.numero = numero;
 
         if (this.numeroSelectionne) {
           await update(child(numerosRef, this.numeroSelectionne.id), dataToSave);
