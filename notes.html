@@ -10,6 +10,7 @@
         .fixed-width { width: 990px; margin: auto; }
         .name-column { width: 200px; }
         .country-column { width: 150px; }
+        .matricule-column { width: 150px; }
         .id-column { width: 50px; }
         .rank-column { width: 60px; }
         .score-column { width: 90px; }        
@@ -131,12 +132,13 @@
                                 <th class="p-2">المجموع الكلي<br>للحفظ</th>
                                 <th class="p-2 country-column">الدولة</th>
                                 <th class="p-2 name-column">الإسم</th>
+                                <th class="p-2 matricule-column">رقم الجامعي</th>
                                 <th class="p-2 id-column">Id</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr x-show="sortedNotes.length === 0">
-                                <td class="p-4 text-center text-gray-500" :colspan="selectedAjza ? 8 : 9">
+                                <td class="p-4 text-center text-gray-500" :colspan="selectedAjza ? 9 : 10">
                                     لا توجد بيانات لعرضها حالياً.
                                 </td>
                             </tr>
@@ -150,6 +152,7 @@
                                     <td class="p-2" x-text="`${candidat.notehafz}/45`"></td>
                                     <td class="p-2" x-text="candidat.pays"></td>
                                     <td class="p-2" x-text="candidat.nom"></td>
+                                    <td class="p-2" x-text="candidat.matricule"></td>
                                     <td class="p-2" x-text="candidat.id"></td>
                                 </tr>
                             </template>
