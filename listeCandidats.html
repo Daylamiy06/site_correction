@@ -28,12 +28,13 @@
 
     <style>
         .fixed-width { width: 990px; margin: auto; }
-        .operations-column { width: 150px; }
-        .name-column { width: 250px; }
-        .country-column { width: 200px; }
-        .parts-column { width: 80px; }
-        .matricule-column { width: 150px; }
+        .operations-column { width: 130px; }
         .id-column { width: 50px; }
+        .name-column { width: 250px; }
+        .matricule-column { width: 150px; }
+        .country-column { width: 200px; }
+        .telephone-column { width: 150px; }
+        .parts-column { width: 70px; }
         input:focus {
             border-color: #3b82f6 !important;
             outline: none;
@@ -57,7 +58,7 @@
             snackbarVisible: false,
             lastDeletedCandidat: null,
             loading: true,
-            formData: { id: "", matricule: "", nom: "", pays: "", ajza: "" },
+            formData: { id: "", nom: "", matricule: "", pays: "", telephone: "", ajza: "" },
             importErrorMessage: "",
             errorMessage: "",
             confirmDelete: {
@@ -66,7 +67,7 @@
                 confirm: () => {}
             },
             resetForm() { 
-                this.formData = { id: "", matricule: "", nom: "", pays: "", ajza: "" }; 
+                this.formData = { id: "", nom: "", matricule: "", pays: "", telephone: "", ajza: "" }; 
                 this.errorMessage = ""; 
             },
             get filteredCandidats() {
@@ -113,9 +114,10 @@
             saveCandidat() {
                 if (!this.actions) return;
 
+				const nom = this.formData.nom.trim();
 				const matricule = this.formData.matricule.trim();
-                const nom = this.formData.nom.trim();
                 const pays = this.formData.pays.trim();
+                const telephone = this.formData.telephone.trim();
                 const ajza = Number(this.formData.ajza);
 
                 if (!matricule || !nom || !pays || isNaN(ajza) || ajza <= 0) {
@@ -131,7 +133,7 @@
 
                 const candidat = {
                     id: this.formData.id || this.nextId++,
-                    matricule, nom, pays, ajza
+                    nom, matricule, pays, telephone, ajza
                 };
                 
                 this.actions.ajouterCandidat(candidat)
@@ -186,8 +188,8 @@
                         const headers = raw[0] || [];
 
                         // Vérification des en-têtes attendues
-                        if (!headers.includes("رقم الجامعي") || !(headers.includes("الإسم") || headers.includes("الاسم")) || !headers.includes("الدولة") || !headers.includes("الأجزاء")) {
-                            this.importErrorMessage = "الملف يجب أن يحتوي على الأعمدة: رقم الجامعي، الاسم، الدولة، الأجزاء";
+                        if (!(headers.includes("الإسم") || headers.includes("الاسم")) || !headers.includes("رقم الجامعي") || !headers.includes("الدولة") || !headers.includes("رقم الهاتف") || !headers.includes("الأجزاء")) {
+                            this.importErrorMessage = "الملف يجب أن يحتوي على الأعمدة: الاسم، رقم الجامعي، الدولة، رقم الهاتف، الأجزاء";
                             this.excelPreview = []
                             return;
                         }
@@ -197,9 +199,10 @@
 
                         this.excelPreview = rows.map((r, index) => ({
                             id: this.nextId + index,
-                            matricule: r["رقم الجامعي"] || "",
                             nom: r["الاسم"] || r["الإسم"] || "",
+                            matricule: r["رقم الجامعي"] || "",
                             pays: r["الدولة"] || "",
+                            telephone: r["رقم الهاتف"] || "",
                             ajza: Number(r["الأجزاء"]) || 0
                         })).filter(c => c.nom && c.pays && c.ajza > 0);
                         
@@ -340,15 +343,16 @@
                         <th class="border border-gray-400 p-2 parts-column cursor-pointer" @click="toggleSort('ajza')">الأجزاء 
                             <span x-show="sortKey === 'ajza'" x-text="sortAsc ? '↑' : '↓'"></span>
                         </th>
+                        <th class="border border-gray-400 p-2 telephone-column">رقم الهاتف</th>
                         <th class="border border-gray-400 p-2 country-column cursor-pointer" @click="toggleSort('pays')">الدولة 
                             <span x-show="sortKey === 'pays'" x-text="sortAsc ? '↑' : '↓'"></span>
-                        </th>
-                        <th class="border border-gray-400 p-2 name-column cursor-pointer" @click="toggleSort('nom')">الإسم 
-                            <span x-show="sortKey === 'nom'" x-text="sortAsc ? '↑' : '↓'"></span>
                         </th>
                         <th class="border border-gray-400 p-2 matricule-column cursor-pointer" @click="toggleSort('matricule')">رقم الجامعي
     						<span x-show="sortKey === 'matricule'" x-text="sortAsc ? '↑' : '↓'"></span>
 						</th>
+                        <th class="border border-gray-400 p-2 name-column cursor-pointer" @click="toggleSort('nom')">الإسم 
+                            <span x-show="sortKey === 'nom'" x-text="sortAsc ? '↑' : '↓'"></span>
+                        </th>
                         <th class="border border-gray-400 p-2 id-column cursor-pointer" @click="toggleSort('id')">Id 
                             <span x-show="sortKey === 'id'" x-text="sortAsc ? '↑' : '↓'"></span>
                         </th>
@@ -356,20 +360,21 @@
                 </thead>
                 <tbody>
                     <tr x-show="sortedCandidats.length === 0">
-                        <td class="p-4 text-center text-gray-500" :colspan="6">.لا توجد بيانات لعرضها حالياً</td>
+                        <td class="p-4 text-center text-gray-500" :colspan="7">.لا توجد بيانات لعرضها حالياً</td>
                     </tr>
                     <template x-for="candidat in sortedCandidats" :key="candidat.id">
                         <tr>
                             <td class="border border-gray-400 p-2">
                                 <div class="flex justify-center gap-2">
-                                    <button @click="formData = { id: candidat.id, matricule: candidat.matricule, nom: candidat.nom, pays: candidat.pays, ajza: candidat.ajza }; showModal = true" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded">تعديل</button>
+                                    <button @click="formData = { id: candidat.id, nom: candidat.nom, matricule: candidat.matricule, pays: candidat.pays, telephone: candidat.telephone, ajza: candidat.ajza }; showModal = true" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-2 rounded">تعديل</button>
                                     <button @click="deleteCandidat(candidat.id)" class="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded">حذف</button>
                                 </div>
                             </td>
                             <td class="border border-gray-400 p-2" x-text="candidat.ajza"></td>
+                            <td class="border border-gray-400 p-2" x-text="candidat.telephone"></td>
                             <td class="border border-gray-400 p-2" x-text="candidat.pays"></td>
-                            <td class="border border-gray-400 p-2" x-text="candidat.nom"></td>
                             <td class="border border-gray-400 p-2" x-text="candidat.matricule"></td>
+                            <td class="border border-gray-400 p-2" x-text="candidat.nom"></td>
                             <td class="border border-gray-400 p-2" x-text="candidat.id"></td>
                         </tr>
                     </template>
@@ -378,118 +383,26 @@
         </div>
 
         <!-- Modale -->
-        <div x-show="showModal" class="fixed inset-0 bg-gray-500 bg-opacity-50 shadow-2xl shadow-black/40 flex justify-center items-center" @click="showModal = false; resetForm()" x-cloak>
-            <div @click.stop class="bg-gray-100 p-8 rounded-lg shadow-lg w-11/12 sm:w-3/4 md:w-2/3 lg:w-1/2 xl:w-1/3 2xl:w-1/4">
-                <h2 class="text-2xl font-semibold text-center mb-6 text-gray-700">إضافة / تعديل مرشح</h2>
-
-                <template x-if="errorMessage">
-                    <div class="mb-4 text-red-600 bg-red-100 border border-red-300 rounded px-4 py-2 text-sm text-right shadow-md">
-                        <span x-text="errorMessage"></span>
-                    </div>
-                </template>
-
-				<div class="mb-4">
-    				<label class="block text-sm font-medium text-gray-700 mb-1">رقم الجامعي:</label>
-    				<input type="text" x-model="formData.matricule"
-   						:class="{'border-red-500': !formData.matricule && errorMessage}"
-           				class="w-full px-4 py-2 border-2 border-gray-500 rounded-md bg-white text-right" placeholder="أدخل رقم الجامعي">
-				</div>
-
-                <div class="mb-4">
-                    <label for="name" class="block text-sm font-medium text-gray-700 mb-1">الإسم:</label>
-                    <input type="text" id="name" x-model="formData.nom"
+        <div x-show="showModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" @click="showModal = false; resetForm()" x-cloak>
+            <div @click.stop class="bg-gray-100 p-6 rounded-lg shadow-lg w-11/12 sm:w-4/5 md:w-2/3 max-h-[80vh] flex flex-col">
+                <div class="px-6 py-4 border-b bg-gray-100 sticky top-0 z-10">
+                	<h2 class="text-2xl font-semibold text-center text-gray-700">إضافة / تعديل مرشح</h2>
+                	<template x-if="errorMessage">
+                    	<div class="mt-3 text-red-600 bg-red-100 border border-red-300 rounded px-4 py-2 text-sm text-right shadow-md">
+                        	<span x-text="errorMessage"></span>
+                    	</div>
+                	</template>
+                </div>
+                
+                <div class="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+                	<div class="mb-4">
+                    	<label for="name" class="block text-sm font-medium text-gray-700 mb-1">الإسم:</label>
+                    	<input type="text" id="name" x-model="formData.nom"
                            :class="{'border-red-500': !formData.nom && errorMessage}" 
                            class="w-full px-4 py-2 border-2 border-gray-500 rounded-md bg-white text-right" placeholder="أدخل الإسم">
-                </div>
+                	</div>
 
-                <div class="mb-4">
-                    <label for="country" class="block text-sm font-medium text-gray-700 mb-1">الدولة:</label>
-                    <input type="text" id="country" x-model="formData.pays"
-                           :class="{'border-red-500': !formData.pays && errorMessage}" 
-                           class="w-full px-4 py-2 border-2 border-gray-500 rounded-md bg-white text-right" placeholder="أدخل الدولة">
-                </div>
-
-                <div class="mb-4">
-                    <label for="parts" class="block text-sm font-medium text-gray-700 mb-1">الأجزاء:</label>
-                    <input type="number" id="parts" x-model="formData.ajza" min="1"
-                           :class="{'border-red-500': !formData.ajza && errorMessage}" 
-                           class="w-full px-4 py-2 border-2 border-gray-500 rounded-md bg-white text-right" placeholder="أدخل عدد الأجزاء">
-                </div>
-
-                <div class="flex justify-between gap-4">
-                    <button @click="saveCandidat()" class="flex-1 bg-blue-500 text-white py-2 rounded-md">تأكيد</button>
-                    <button @click="resetForm(); showModal = false" class="flex-1 bg-gray-400 text-white py-2 rounded-md">إلغاء</button>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Modale Importation Excel -->
-        <div x-show="showImportModal" class="fixed inset-0 bg-gray-500 bg-opacity-50 flex justify-center items-center" @click="showImportModal = false" x-cloak>
-            <div @click.stop class="bg-white p-6 rounded-lg shadow-lg w-11/12 sm:w-2/3 lg:w-1/2">
-                <h2 class="text-xl font-bold text-center mb-4 text-gray-700">استيراد المرشحين من ملف Excel</h2>
-                
-                <template x-if="importErrorMessage">
-                    <div class="mb-4 text-red-600 bg-red-100 border border-red-300 rounded px-4 py-2 text-sm text-right shadow-md">
-                        <span x-text="importErrorMessage"></span>
-                    </div>
-                </template>
-
-                <input id="excelFileInput" type="file" accept=".xlsx,.xls" @change="handleFileUpload($event)" class="mb-4 w-full text-sm text-gray-600" />
-
-                <!-- Aperçu -->
-                <template x-if="excelPreview.length > 0">
-                    <div class="bg-gray-50 p-3 rounded border mb-4 overflow-auto max-h-60 text-sm">
-                        <div class="font-bold text-gray-700 mb-2">معاينة البيانات:</div>
-                        <table class="w-full text-right border border-gray-300 text-xs">
-                            <thead>
-                                <tr class="bg-gray-100">
-                                    <th class="border px-2 py-1 text-center">الأجزاء</th>
-                                    <th class="border px-2 py-1 text-center">الدولة</th>
-                                    <th class="border px-2 py-1 text-center">الإسم</th>
-                                    <th class="border px-2 py-1 text-center">رقم الجامعي</th>
-                                    <th class="border px-2 py-1 text-center">Id</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <template x-for="row in excelPreview.slice(0, 10)" :key="row.id">
-                                    <tr>
-                                        <td class="border px-2 py-1 text-center" x-text="row.ajza"></td>
-                                        <td class="border px-2 py-1 text-center" x-text="row.pays"></td>
-                                        <td class="border px-2 py-1 text-center" x-text="row.nom"></td>
-                                        <td class="border px-2 py-1 text-center" x-text="row.matricule"></td>
-                                        <td class="border px-2 py-1 text-center" x-text="row.id"></td>
-                                    </tr>
-                                </template>
-                            </tbody>
-                        </table>
-                        <div class="text-xs text-gray-500 mt-1" x-show="excelPreview.length > 10">+ <span x-text="excelPreview.length - 10"></span> مرشحين إضافيين...</div>
-                    </div>
-                </template>
-
-                <div class="flex justify-between gap-4">
-                    <button x-show="excelPreview.length > 0" @click="confirmImportFromExcel" class="flex-1 bg-green-600 text-white py-2 rounded">استيراد الآن</button>
-                    <button @click="excelPreview = []; showImportModal = false" class="flex-1 bg-gray-400 text-white py-2 rounded">إلغاء</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Snackbar -->
-        <div x-show="snackbarVisible" class="fixed top-1/3 left-1/2 transform -translate-x-1/2 mb-4 px-4 py-2 bg-blue-100 border-2 border-gray-500 text-black rounded-lg shadow-2xl shadow-black/40 flex justify-between items-center w-auto sm:w-1/3 space-x-4" x-cloak>
-            <span x-text="snackbarMessage"></span>
-            <button x-show="typeof snackbarAction === 'function'" @click="snackbarAction(); snackbarVisible = false" class="ml-4 underline font-bold">إلغاء</button>
-        </div>
-
-        <!-- Boîte de confirmation personnalisée -->
-        <div x-show="confirmDelete.visible" class="fixed inset-0 bg-black bg-opacity-50 shadow-2xl shadow-black/40 flex items-center justify-center z-50" x-cloak>
-            <div class="bg-white p-6 rounded shadow-md text-center w-80">
-                <h2 class="text-xl font-bold mb-4">حذف</h2>
-                <p class="mb-6">هل أنت متأكد من حذف هذا المرشح؟</p>
-                <div class="flex justify-center gap-4">
-                    <button @click="confirmDelete.confirm()" class="bg-blue-500 text-white px-5 font-bold py-1 rounded">نعم</button>
-                    <button @click="confirmDelete.visible = false" class="bg-red-500 text-white px-5 font-bold py-1 rounded">إلغاء</button>
-                </div>
-            </div>
-        </div>
-    </div>
-</body>
-</html>
+					<div class="mb-4">
+    					<label class="block text-sm font-medium text-gray-700 mb-1">رقم الجامعي:</label>
+    					<input type="text" id="matricule" x-model="formData.matricule"
+   						:class="{'border-red-500': !formData.matricule
