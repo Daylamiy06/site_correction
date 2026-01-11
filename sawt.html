@@ -134,7 +134,7 @@
     <div x-show="activeTab === 'sawt'" x-cloak>
         <div class="mb-4 flex items-center gap-2">
             <label class="block text-lg font-bold whitespace-nowrap">قائمة المرشحين :</label>
-            <select id="candidatSelect" class="border p-2 rounded w-64" @change="$store.sawt.selectedCandidate = $event.target.value">
+            <select id="candidatSelect" class="border p-2 rounded w-64" @change="$store.sawt.selectedCandidate = $event.target.value; localStorage.setItem('selectedCandidate:sawt', selectedCandidate)">
                 <option value="">حدد مرشحًا</option>
             </select>
         </div>
@@ -329,6 +329,11 @@
                     }
                 }
     		});
+    		const saved = localStorage.getItem('selectedCandidate:sawt');
+			if (saved) {
+  			selectElement.value = saved;
+  			Alpine.store('sawt').selectedCandidate = saved;
+			}
     		window.allCandidats = candidatsData;
   		  window.allNotes = notesData;
 		}
@@ -384,6 +389,7 @@
 			};
             showToast("تم تسجيل درجة الحفظ بنجاح !", "success");
             store.resetFields();
+            localStorage.removeItem('selectedCandidate:sawt');
             store.loading = false;
         };
 
