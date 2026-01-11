@@ -366,6 +366,11 @@
            		 }
      		   }
     		});
+    		const saved = localStorage.getItem('selectedCandidate:hafz');
+			if (saved) {
+  			selectElement.value = saved;
+  			Alpine.store('hafz').selectedCandidate = saved;
+			}
     		window.allCandidats = candidatsData;
   		  window.allNotes = notesData;
 		}
@@ -409,7 +414,7 @@
                 nom: data.nom,
                 pays: data.pays,
                 ajza: data.ajza,
-				matricule: data.matricule,
+                matricule: data.matricule,
                 notetajweed: noteTajweed,
                 notesawt: noteSawt,
                 notehafz: noteHafz,
@@ -427,6 +432,7 @@
 
             showToast("تم تسجيل درجة الحفظ بنجاح !", "success");
             store.resetFields();
+            localStorage.removeItem('selectedCandidate:hafz');
             store.loading = false;
         };
     </script>
@@ -458,8 +464,8 @@
             }
 
             store.selectedCandidate = selectedValue;
+            localStorage.setItem('selectedCandidate:hafz', selectedValue);
         }
     </script>
 </body>
-
 </html>
