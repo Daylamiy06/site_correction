@@ -11,7 +11,6 @@
         .name-column { width: 200px; }
         .country-column { width: 150px; }
         .matricule-column { width: 150px; }
-        .id-column { width: 50px; }
         .rank-column { width: 60px; }
         .score-column { width: 90px; }        
         #searchInput { flex-grow: 1; }
@@ -29,11 +28,15 @@
             outline: none;
         }
         @media print {
-            footer, #juzFilter,
-            #searchInput, .fa-user-shield,
-            .filter-sort-container, button, h1 {
+            footer, #juzFilter, #searchInput,
+			.fa-user-shield, .hifz-column, .hide,
+			.tajwed-column, .sawt-column,
+			.filter-sort-container, button, h1 {
                 display: none !important;
             }
+            .print-title {
+        		display: block !important;
+    		}
             .shadow-md {
                 box-shadow: none !important;
             }
@@ -51,6 +54,12 @@
             tr, td, th {
                 page-break-inside: avoid;
             }
+			thead th {
+        		background-color: #3b82f6 !important;
+        		color: white !important;
+        		-webkit-print-color-adjust: exact;
+        		print-color-adjust: exact;
+    		}
         }
     </style>
 </head>
@@ -106,8 +115,8 @@
         <!-- Contenu principal -->
         <template x-if="!isLoading">
             <div>
+            	<h2 class="print-title text-2xl font-bold mb-6 text-center hidden" x-text="selectedAjza ? `نتائج الجزء ${selectedAjza}` : 'النتائج العامة لجميع الأجزاء'"></h2>
                 <h1 class="text-2xl font-bold mb-4 text-center">إدارة الدرجات</h1>
-
                 <div class="filter-sort-container">
                     <select id="juzFilter" x-model="selectedAjza"
                         class="w-[150px] h-11 px-3 border-2 border-gray-500 rounded-md bg-gray-200 text-right text-base">
@@ -123,17 +132,16 @@
                 <div class="overflow-x-auto">
                     <table class="w-full border-collapse border border-gray-400 text-center">
                         <thead>
-                            <tr class="bg-gray-200">
+                            <tr class="bg-gray-200 font-bold">
                                 <th class="p-2" x-show="!selectedAjza">الأجزاء</th>
                                 <th class="p-2 rank-column">الترتيب</th>
-                                <th class="p-2 score-column">التقدير</th>
-                                <th class="p-2">المجموع الكلي<br>للأداء و الصوت</th>
-                                <th class="p-2">المجموع الكلي<br>للتجويد</th>
-                                <th class="p-2">المجموع الكلي<br>للحفظ</th>
-                                <th class="p-2 country-column">الدولة</th>
                                 <th class="p-2 name-column">الإسم</th>
+                                <th class="p-2 score-column">التقدير</th>
+                                <th class="p-2 country-column">الدولة</th>
                                 <th class="p-2 matricule-column">رقم الجامعي</th>
-                                <th class="p-2 id-column">Id</th>
+                                <th class="p-2 hifz-column">تقيم الحفظ</th>
+                                <th class="p-2 tajwed-column">تقييم التجويد</th>
+                                <th class="p-2 sawt-column">تقييم الأداء والصوت</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -146,14 +154,13 @@
                                 <tr>
                                     <td class="p-2" x-text="candidat.ajza" x-show="!selectedAjza"></td>
                                     <td class="p-2" x-text="candidat.rank"></td>
-                                    <td class="p-2" x-text="`${candidat.notetotale}/100`"></td>
-                                    <td class="p-2" x-text="`${candidat.notesawt}/25`"></td>
-                                    <td class="p-2" x-text="`${candidat.notetajweed}/30`"></td>
-                                    <td class="p-2" x-text="`${candidat.notehafz}/45`"></td>
-                                    <td class="p-2" x-text="candidat.pays"></td>
                                     <td class="p-2" x-text="candidat.nom"></td>
+                                    <td class="p-2" x-text="`${candidat.notetotale}/100`"></td>
+                                    <td class="p-2" x-text="candidat.pays"></td>
                                     <td class="p-2" x-text="candidat.matricule"></td>
-                                    <td class="p-2" x-text="candidat.id"></td>
+                                    <td class="p-2 hide" x-text="`${candidat.notehafz}/45`"></td>
+                                    <td class="p-2 hide" x-text="`${candidat.notetajweed}/30`"></td>
+                                    <td class="p-2 hide" x-text="`${candidat.notesawt}/25`"></td>
                                 </tr>
                             </template>
                         </tbody>
@@ -161,11 +168,7 @@
                 </div>
 
                 <div class="mt-4 text-right">
-                    <button
-                        onclick="window.print()"
-                        class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                        :disabled="sortedNotes.length === 0">    طباعة الجدول
-                    </button>
+                    <button onclick="window.print()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed" :disabled="sortedNotes.length === 0">طباعة الجدول</button>
                 </div>
             </div>
         </template>
