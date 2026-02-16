@@ -29,8 +29,7 @@
         }
         @media print {
             footer, #juzFilter, #searchInput,
-			.fa-user-shield, .hifz-column, .hide,
-			.tajwed-column, .sawt-column,
+			.fa-user-shield, .hide,
 			.filter-sort-container, button, h1 {
                 display: none !important;
             }
@@ -133,15 +132,15 @@
                     <table class="w-full border-collapse border border-gray-400 text-center">
                         <thead>
                             <tr class="bg-gray-200 font-bold">
-                                <th class="p-2" x-show="!selectedAjza">الأجزاء</th>
+                                <th class="p-2 hide" x-show="!selectedAjza">الأجزاء</th>
                                 <th class="p-2 rank-column">الترتيب</th>
                                 <th class="p-2 name-column">الإسم</th>
                                 <th class="p-2 score-column">التقدير</th>
                                 <th class="p-2 country-column">الدولة</th>
                                 <th class="p-2 matricule-column">رقم الجامعي</th>
-                                <th class="p-2 hifz-column">تقيم الحفظ</th>
-                                <th class="p-2 tajwed-column">تقييم التجويد</th>
-                                <th class="p-2 sawt-column">تقييم الأداء والصوت</th>
+                                <th class="p-2 hide">تقيم الحفظ</th>
+                                <th class="p-2 hide">تقييم التجويد</th>
+                                <th class="p-2 hide">تقييم الأداء والصوت</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -152,7 +151,7 @@
                             </tr>
                             <template x-for="candidat in sortedNotes" :key="candidat.id">
                                 <tr>
-                                    <td class="p-2" x-text="candidat.ajza" x-show="!selectedAjza"></td>
+                                    <td class="p-2 hide" x-text="candidat.ajza" x-show="!selectedAjza"></td>
                                     <td class="p-2" x-text="candidat.rank"></td>
                                     <td class="p-2" x-text="candidat.nom"></td>
                                     <td class="p-2" x-text="`${candidat.notetotale}/100`"></td>
@@ -191,3 +190,4 @@
     </script>
 </body>
 </html>
+
