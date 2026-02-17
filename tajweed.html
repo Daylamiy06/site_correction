@@ -288,6 +288,39 @@
         const numerosRef = ref(db, 'numeros');
 		let numerosData = {};
 		
+		function injectNumeroDataForCandidate(candidatId) {
+    		const numeroEntry = Object.values(numerosData).find(n => String(n.candidatId) === String(candidatId));
+    		if (numeroEntry) {
+        		window.injectedPages = {
+            		pageQ1: Number(numeroEntry.pageQ1 || 1),
+            		pageQ2: Number(numeroEntry.pageQ2 || 1),
+            		pageQ3: Number(numeroEntry.pageQ3 || 1)
+        		};
+        		window.injectedSurahs = {
+            		pageQ1: numeroEntry.sourateQ1 || "",
+            		pageQ2: numeroEntry.sourateQ2 || "",
+            		pageQ3: numeroEntry.sourateQ3 || ""
+        		};
+        		window.injectedVersets = {
+            		pageQ1: numeroEntry.versetQ1 || "",
+            		pageQ2: numeroEntry.versetQ2 || "",
+            		pageQ3: numeroEntry.versetQ3 || ""
+        		};
+    		} else {
+        		window.injectedPages = { pageQ1: 1, pageQ2: 1, pageQ3: 1 };
+        		window.injectedSurahs = { pageQ1: "", pageQ2: "", pageQ3: "" };
+        		window.injectedVersets = { pageQ1: "", pageQ2: "", pageQ3: "" };
+    		}
+
+    		window.dispatchEvent(new CustomEvent('numero-data-updated', {
+        		detail: {
+            		pages: window.injectedPages,
+            		surahs: window.injectedSurahs,
+            		versets: window.injectedVersets
+        		}
+    		}));
+		};
+
 		onValue(numerosRef, (snapshot) => {
     		numerosData = snapshot.val() || {};
     		chargerCandidats();
@@ -296,57 +329,33 @@
 		async function chargerCandidats() {
     		const candidatsSnapshot = await get(ref(db, 'candidats'));
     		const notesSnapshot = await get(ref(db, 'notes'));
-
     		const candidatsData = candidatsSnapshot.val() || {};
     		const notesData = notesSnapshot.val() || {};
-
     		const selectElement = document.getElementById("candidatSelect");
     		selectElement.innerHTML = '<option value="">حدد مرشحًا</option>';
 
-   		 Object.entries(numerosData).forEach(([numeroId, numero]) => {
-       		 const candidatId = numero.candidatId;
+    		Object.entries(numerosData).forEach(([numeroId, numero]) => {
+        		const candidatId = numero.candidatId;
 
-				const numeroEntry = Object.values(numerosData).find(n => n.candidatId === candidatId);
-				if (numeroEntry) {
-    				window.injectedPages = {
-        				pageQ1: Number(numeroEntry.pageQ1 || 1),
-        				pageQ2: Number(numeroEntry.pageQ2 || 1),
-        				pageQ3: Number(numeroEntry.pageQ3 || 1)
-    				};
-    				window.injectedSurahs = {
-						pageQ1: numeroEntry.sourateQ1 || "",
-						pageQ2: numeroEntry.sourateQ2 || "",
-						pageQ3: numeroEntry.sourateQ3 || ""
-					};
-    				window.injectedVersets = {
-    					pageQ1: numeroEntry.versetQ1 || "",
-    					pageQ2: numeroEntry.versetQ2 || "",
-    					pageQ3: numeroEntry.versetQ3 || ""
-  				};
-				} else {
-    				window.injectedPages = { pageQ1: 1, pageQ2: 1, pageQ3: 1 };
-    				window.injectedVersets = {versetQ1: "", versetQ2: "", versetQ3: ""};
-    				window.injectedVersets = {sourateQ1: "", sourateQ2: "", sourateQ3: ""};
-				}
-
-      		  if (!numero.interroge_tajweed && candidatsData[candidatId]) {
+        		if (!numero.interroge_tajweed && candidatsData[candidatId]) {
             		const candidat = candidatsData[candidatId];
-         		   const note = notesData[candidatId];
-          		  if (!note || note.notetajweed === 0) {
+            		const note = notesData[candidatId];
+
+            		if (!note || note.notetajweed === 0) {
                 		const option = document.createElement("option");
-              		  option.value = candidatId;
-              		  option.textContent = candidat.nom;
-             		   selectElement.appendChild(option);
-           		 }
-     		   }
+                		option.value = candidatId;
+                		option.textContent = candidat.nom;
+                		selectElement.appendChild(option);
+            		}
+        		}
     		});
-    		const saved = localStorage.getItem('selectedCandidate:tajweed');
-			if (saved) {
-  			selectElement.value = saved;
-  			Alpine.store('tajweed').selectedCandidate = saved;
-			}
+
+			localStorage.removeItem('selectedCandidate:tajweed');
+    		selectElement.value = "";
+    		Alpine.store('tajweed').selectedCandidate = "";
+    		injectNumeroDataForCandidate("");
     		window.allCandidats = candidatsData;
-  		  window.allNotes = notesData;
+    		window.allNotes = notesData;
 		}
 
         window.validateScores = async function () {
@@ -405,59 +414,56 @@
         };
 
         function setupRealtimeListeners() {
-            const store = Alpine.store('tajweed');
-            const candidatSelect = document.getElementById('candidatSelect');
-            let currentListenerRef = null;
+    		const store = Alpine.store('tajweed');
+    		const candidatSelect = document.getElementById('candidatSelect');
+    		let currentListenerRef = null;
+    		candidatSelect.addEventListener('change', () => {
+        		const candidatId = candidatSelect.value;
 
-            candidatSelect.addEventListener('change', () => {
-                const candidatId = candidatSelect.value;
+        		// On injecte ici les données du candidat actif
+        		injectNumeroDataForCandidate(candidatId);
 
-                if (currentListenerRef) {
-                    off(currentListenerRef);
-                    currentListenerRef = null;
-                }
+        		if (currentListenerRef) {
+            		off(currentListenerRef);
+            		currentListenerRef = null;
+        		}
 
-                if (!candidatId) return;
+        		if (!candidatId) return;
 
-                for (let i = 0; i < 3; i++) {
-                    store.annulations[i] = false;
-                    store.errors[i].jali = Array(12).fill(false);
-                    store.errors[i].khafi = Array(16).fill(false);
-                    store.previousErrors[i].jali = [];
-                    store.previousErrors[i].khafi = [];
-                }
-                store.calculateScores();
-
-                const annuleRef = ref(db, 'notes/' + candidatId);
-
-                onValue(annuleRef, (snapshot) => {
-                    const data = snapshot.val();
-                    if (!data) return;
-
-                    const store = Alpine.store('tajweed');
-
-                    for (let i = 0; i < 3; i++) {
-                        const annulée = data['annulequestion' + (i + 1)] === true;
-
-                        if (annulée && !store.annulations[i]) {
-                            store.previousErrors[i].jali = [...store.errors[i].jali];
-                            store.previousErrors[i].khafi = [...store.errors[i].khafi];
-                            store.previousErrors[i].active = true;
-                            store.errors[i].jali = store.errors[i].jali.map(() => true);
-                            store.errors[i].khafi = store.errors[i].khafi.map(() => true);
-                        } else if (!annulée && store.annulations[i]) {
-                            if (store.previousErrors[i].active) {
-                                store.errors[i].jali = [...store.previousErrors[i].jali];
-                                store.errors[i].khafi = [...store.previousErrors[i].khafi];
-                                store.previousErrors[i].active = false;
-                            }
-                        }
-                        store.annulations[i] = annulée;
-                    }
-                    store.calculateScores();
-                });
-            });
-        }
+        		for (let i = 0; i < 3; i++) {
+            		store.annulations[i] = false;
+            		store.errors[i].jali = Array(12).fill(false);
+            		store.errors[i].khafi = Array(16).fill(false);
+            		store.previousErrors[i].jali = [];
+            		store.previousErrors[i].khafi = [];
+        		}
+        		store.calculateScores();
+        		const annuleRef = ref(db, 'notes/' + candidatId);
+        		onValue(annuleRef, (snapshot) => {
+            		const data = snapshot.val();
+            		if (!data) return;
+            		const store = Alpine.store('tajweed');
+            		for (let i = 0; i < 3; i++) {
+                		const annulée = data['annulequestion' + (i + 1)] === true;
+                		if (annulée && !store.annulations[i]) {
+                    		store.previousErrors[i].jali = [...store.errors[i].jali];
+                    		store.previousErrors[i].khafi = [...store.errors[i].khafi];
+                    		store.previousErrors[i].active = true;
+                    		store.errors[i].jali = store.errors[i].jali.map(() => true);
+                    		store.errors[i].khafi = store.errors[i].khafi.map(() => true);
+                		} else if (!annulée && store.annulations[i]) {
+                    		if (store.previousErrors[i].active) {
+                        		store.errors[i].jali = [...store.previousErrors[i].jali];
+                        		store.errors[i].khafi = [...store.previousErrors[i].khafi];
+                        		store.previousErrors[i].active = false;
+                    		}
+                		}
+                		store.annulations[i] = annulée;
+            		}
+            		store.calculateScores();
+        		});
+    		});
+		}
         setupRealtimeListeners();
     </script>
 </body>
