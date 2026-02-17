@@ -88,11 +88,25 @@ function pdfViewer() {
     versetLabels: { pageQ1: "", pageQ2: "", pageQ3: "" },
     surahLabels: { pageQ1: "", pageQ2: "", pageQ3: "" },
 
-    async init() {
-      if (window.injectedPages) this.pages = { ...this.pages, ...window.injectedPages };
-      if (window.injectedVersets) this.versetLabels = { ...this.versetLabels, ...window.injectedVersets };
-      if (window.injectedSurahs) this.surahLabels = { ...this.surahLabels, ...window.injectedSurahs };
+    applyInjectedData(detail = null) {
+  	  const pages = detail?.pages || window.injectedPages;
+  	  const versets = detail?.versets || window.injectedVersets;
+  	  const surahs = detail?.surahs || window.injectedSurahs;
+  	  if (pages) this.pages = { ...this.pages, ...pages };
+  	  if (versets) this.versetLabels = { ...this.versetLabels, ...versets };
+  	  if (surahs) this.surahLabels = { ...this.surahLabels, ...surahs };
+     	if (this.pdfLoaded) {
+    	  const targetPage = this.pages[this.activeKey] || this.pages.pageQ1 || 1;
+    	  this.goToPage(targetPage);
+  	  }
+	  },
 
+    async init() {
+      this.applyInjectedData();
+  	window.addEventListener('numero-data-updated', (event) => {
+    	this.applyInjectedData(event.detail || null);
+  	});
+  
       try {
         const blob = await idbGet("pdfFile");
         if (blob) {
@@ -106,7 +120,7 @@ function pdfViewer() {
         this.showModal = true;
       }
     },
-
+    
     async importPdf(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -166,3 +180,4 @@ function pdfViewer() {
   };
 }
 </script>
+
