@@ -314,6 +314,39 @@
         const numerosRef = ref(db, 'numeros');
 		let numerosData = {};
 		
+		window.injectNumeroDataForCandidate = function (candidatId) {
+    		const numeroEntry = Object.values(numerosData).find(n => String(n.candidatId) === String(candidatId));
+    		if (numeroEntry) {
+        		window.injectedPages = {
+            		pageQ1: Number(numeroEntry.pageQ1 || 1),
+            		pageQ2: Number(numeroEntry.pageQ2 || 1),
+            		pageQ3: Number(numeroEntry.pageQ3 || 1)
+        		};
+        		window.injectedSurahs = {
+            		pageQ1: numeroEntry.sourateQ1 || "",
+            		pageQ2: numeroEntry.sourateQ2 || "",
+            		pageQ3: numeroEntry.sourateQ3 || ""
+        		};
+        		window.injectedVersets = {
+            		pageQ1: numeroEntry.versetQ1 || "",
+            		pageQ2: numeroEntry.versetQ2 || "",
+            		pageQ3: numeroEntry.versetQ3 || ""
+        		};
+    		} else {
+        		window.injectedPages = { pageQ1: 1, pageQ2: 1, pageQ3: 1 };
+        		window.injectedSurahs = { pageQ1: "", pageQ2: "", pageQ3: "" };
+        		window.injectedVersets = { pageQ1: "", pageQ2: "", pageQ3: "" };
+    		}
+
+    		window.dispatchEvent(new CustomEvent('numero-data-updated', {
+        		detail: {
+            		pages: window.injectedPages,
+            		surahs: window.injectedSurahs,
+            		versets: window.injectedVersets
+        		}
+    		}));
+		};
+		
 		onValue(numerosRef, (snapshot) => {
     		numerosData = snapshot.val() || {};
     		chargerCandidats();
@@ -322,57 +355,33 @@
 		async function chargerCandidats() {
     		const candidatsSnapshot = await get(ref(db, 'candidats'));
     		const notesSnapshot = await get(ref(db, 'notes'));
-
     		const candidatsData = candidatsSnapshot.val() || {};
     		const notesData = notesSnapshot.val() || {};
-
     		const selectElement = document.getElementById("candidatSelect");
     		selectElement.innerHTML = '<option value="">حدد مرشحًا</option>';
 
-   		 Object.entries(numerosData).forEach(([numeroId, numero]) => {
-       		 const candidatId = numero.candidatId;
+    		Object.entries(numerosData).forEach(([numeroId, numero]) => {
+        		const candidatId = numero.candidatId;
 
-                const numeroEntry = Object.values(numerosData).find(n => n.candidatId === candidatId);
-				if (numeroEntry) {
-    				window.injectedPages = {
-        				pageQ1: Number(numeroEntry.pageQ1 || 1),
-        				pageQ2: Number(numeroEntry.pageQ2 || 1),
-        				pageQ3: Number(numeroEntry.pageQ3 || 1)
-    				};
-    				window.injectedSurahs = {
-						pageQ1: numeroEntry.sourateQ1 || "",
-						pageQ2: numeroEntry.sourateQ2 || "",
-						pageQ3: numeroEntry.sourateQ3 || ""
-					};
-    				window.injectedVersets = {
-    					pageQ1: numeroEntry.versetQ1 || "",
-    					pageQ2: numeroEntry.versetQ2 || "",
-    					pageQ3: numeroEntry.versetQ3 || ""
-  				};
-				} else {
-    				window.injectedPages = { pageQ1: 1, pageQ2: 1, pageQ3: 1 };
-    				window.injectedVersets = {versetQ1: "", versetQ2: "", versetQ3: ""};
-    				window.injectedVersets = {sourateQ1: "", sourateQ2: "", sourateQ3: ""};
-				}
-
-      		  if (!numero.interroge_hafz && candidatsData[candidatId]) {
+        		if (!numero.interroge_hafz && candidatsData[candidatId]) {
             		const candidat = candidatsData[candidatId];
-         		   const note = notesData[candidatId];
-          		  if (!note || note.notehafz === 0) {
+            		const note = notesData[candidatId];
+
+            		if (!note || note.notetajweed === 0) {
                 		const option = document.createElement("option");
-              		  option.value = candidatId;
-              		  option.textContent = candidat.nom;
-             		   selectElement.appendChild(option);
-           		 }
-     		   }
+                		option.value = candidatId;
+                		option.textContent = candidat.nom;
+                		selectElement.appendChild(option);
+            		}
+        		}
     		});
-    		const saved = localStorage.getItem('selectedCandidate:hafz');
-			if (saved) {
-  			selectElement.value = saved;
-  			Alpine.store('hafz').selectedCandidate = saved;
-			}
+
+			localStorage.removeItem('selectedCandidate:hafz');
+    		selectElement.value = "";
+    		Alpine.store('hafz').selectedCandidate = "";
+    		injectNumeroDataForCandidate("");
     		window.allCandidats = candidatsData;
-  		  window.allNotes = notesData;
+    		window.allNotes = notesData;
 		}
 
         window.validateScores = async function () {
@@ -465,6 +474,7 @@
 
             store.selectedCandidate = selectedValue;
             localStorage.setItem('selectedCandidate:hafz', selectedValue);
+            window.injectNumeroDataForCandidate(selectedValue);
         }
     </script>
 </body>
