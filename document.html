@@ -4,10 +4,13 @@
     <button @click="setQuestion(2)" :class="activeQuestion===2?'font-bold border-b-4 border-blue-500 bg-sky-100':''" class="text-blue-700 p-2 rounded">السؤال الثاني</button>
     <button @click="setQuestion(3)" :class="activeQuestion===3?'font-bold border-b-4 border-blue-500 bg-sky-100':''" class="text-blue-700 p-2 rounded">السؤال الثالث</button>
   </div>
+  
+  <div x-show="loading" class="fixed inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50">
+    <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+  </div>
 
   <div class="text-right text-green-700 font-bold text-lg mb-2" x-text="getRangeLabel()"></div>
-
-  <div class="bg-white shadow p-8 quran notranslate" x-ref="container"></div>
+  <div x-show="!loading" class="bg-white shadow p-8 quran notranslate" x-ref="container"></div>
 </div>
 
 <style id="qcf-fonts"></style>
@@ -53,6 +56,7 @@ function mushaf(){
     verses: [],
     allVerses: [],
     verseIndex: {},
+    loading: false,
     loadedFonts: new Set(),
     surahNames:{},
     activeQuestion: 1,
@@ -109,6 +113,7 @@ function mushaf(){
     },
 
     loadRange(range){
+      this.loading = true;
       if (!range) { this.verses = []; this.render(); return; }
 
       const startSurah = Number(range.startSurah || 0);
@@ -188,6 +193,7 @@ function mushaf(){
         }
       }
       container.appendChild(frag);
+      this.loading = false;
     },
 
     toArabicDigits(value) {
