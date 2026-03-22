@@ -283,36 +283,63 @@
 		let numerosData = {};
 		
 		function injectNumeroDataForCandidate(candidatId) {
-    		const numeroEntry = Object.values(numerosData).find(n => String(n.candidatId) === String(candidatId));
-    		if (numeroEntry) {
-        		window.injectedPages = {
-            		pageQ1: Number(numeroEntry.pageQ1 || 1),
-            		pageQ2: Number(numeroEntry.pageQ2 || 1),
-            		pageQ3: Number(numeroEntry.pageQ3 || 1)
-        		};
-        		window.injectedSurahs = {
-            		pageQ1: numeroEntry.sourateQ1 || "",
-            		pageQ2: numeroEntry.sourateQ2 || "",
-            		pageQ3: numeroEntry.sourateQ3 || ""
-        		};
-        		window.injectedVersets = {
-            		pageQ1: numeroEntry.versetQ1 || "",
-            		pageQ2: numeroEntry.versetQ2 || "",
-            		pageQ3: numeroEntry.versetQ3 || ""
-        		};
-    		} else {
-        		window.injectedPages = { pageQ1: 1, pageQ2: 1, pageQ3: 1 };
-        		window.injectedSurahs = { pageQ1: "", pageQ2: "", pageQ3: "" };
-        		window.injectedVersets = { pageQ1: "", pageQ2: "", pageQ3: "" };
-    		}
+			const numeroEntry = Object.values(numerosData).find(n => String(n.candidatId) === String(candidatId));
 
-    		window.dispatchEvent(new CustomEvent('numero-data-updated', {
-        		detail: {
-            		pages: window.injectedPages,
-            		surahs: window.injectedSurahs,
-            		versets: window.injectedVersets
-        		}
-    		}));
+			if (numeroEntry) {
+				window.injectedPages = {
+					pageQ1: Number(numeroEntry.pageFromQ1 || 1),
+					pageQ2: Number(numeroEntry.pageFromQ2 || 1),
+					pageQ3: Number(numeroEntry.pageFromQ3 || 1)
+				};
+				window.injectedSurahs = {
+					pageQ1: numeroEntry.sourateFromQ1 || "",
+					pageQ2: numeroEntry.sourateFromQ2 || "",
+					pageQ3: numeroEntry.sourateFromQ3 || ""
+				};
+				window.injectedVersets = {
+					pageQ1: numeroEntry.versetFromQ1 || "",
+					pageQ2: numeroEntry.versetFromQ2 || "",
+					pageQ3: numeroEntry.versetFromQ3 || ""
+				};
+				window.injectedRanges = {
+					q1: {
+						startSurah: Number(numeroEntry.sourateFromQ1 || 0),
+						startAyah: Number(numeroEntry.versetFromQ1 || 0),
+						endSurah: Number(numeroEntry.sourateToQ1 || 0),
+						endAyah: Number(numeroEntry.versetToQ1 || 0)
+					},
+					q2: {
+						startSurah: Number(numeroEntry.sourateFromQ2 || 0),
+						startAyah: Number(numeroEntry.versetFromQ2 || 0),
+						endSurah: Number(numeroEntry.sourateToQ2 || 0),
+						endAyah: Number(numeroEntry.versetToQ2 || 0)
+					},
+					q3: {
+						startSurah: Number(numeroEntry.sourateFromQ3 || 0),
+						startAyah: Number(numeroEntry.versetFromQ3 || 0),
+						endSurah: Number(numeroEntry.sourateToQ3 || 0),
+						endAyah: Number(numeroEntry.versetToQ3 || 0)
+					}
+				};
+			} else {
+				window.injectedPages = { pageQ1: 1, pageQ2: 1, pageQ3: 1 };
+				window.injectedSurahs = { pageQ1: "", pageQ2: "", pageQ3: "" };
+				window.injectedVersets = { pageQ1: "", pageQ2: "", pageQ3: "" };
+				window.injectedRanges = {
+					q1: { startSurah: 0, startAyah: 0, endSurah: 0, endAyah: 0 },
+					q2: { startSurah: 0, startAyah: 0, endSurah: 0, endAyah: 0 },
+					q3: { startSurah: 0, startAyah: 0, endSurah: 0, endAyah: 0 }
+				};
+			}
+
+			window.dispatchEvent(new CustomEvent('numero-data-updated', {
+				detail: {
+					pages: window.injectedPages,
+					surahs: window.injectedSurahs,
+					versets: window.injectedVersets,
+					ranges: window.injectedRanges
+				}
+			}));
 		};
 		
 		onValue(numerosRef, (snapshot) => {
