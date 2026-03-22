@@ -289,38 +289,65 @@
 		let numerosData = {};
 		
 		function injectNumeroDataForCandidate(candidatId) {
-    		const numeroEntry = Object.values(numerosData).find(n => String(n.candidatId) === String(candidatId));
-    		if (numeroEntry) {
-        		window.injectedPages = {
-            		pageQ1: Number(numeroEntry.pageQ1 || 1),
-            		pageQ2: Number(numeroEntry.pageQ2 || 1),
-            		pageQ3: Number(numeroEntry.pageQ3 || 1)
-        		};
-        		window.injectedSurahs = {
-            		pageQ1: numeroEntry.sourateQ1 || "",
-            		pageQ2: numeroEntry.sourateQ2 || "",
-            		pageQ3: numeroEntry.sourateQ3 || ""
-        		};
-        		window.injectedVersets = {
-            		pageQ1: numeroEntry.versetQ1 || "",
-            		pageQ2: numeroEntry.versetQ2 || "",
-            		pageQ3: numeroEntry.versetQ3 || ""
-        		};
-    		} else {
-        		window.injectedPages = { pageQ1: 1, pageQ2: 1, pageQ3: 1 };
-        		window.injectedSurahs = { pageQ1: "", pageQ2: "", pageQ3: "" };
-        		window.injectedVersets = { pageQ1: "", pageQ2: "", pageQ3: "" };
-    		}
+			const numeroEntry = Object.values(numerosData).find(n => String(n.candidatId) === String(candidatId));
 
-    		window.dispatchEvent(new CustomEvent('numero-data-updated', {
-        		detail: {
-            		pages: window.injectedPages,
-            		surahs: window.injectedSurahs,
-            		versets: window.injectedVersets
-        		}
-    		}));
-		};
+			if (numeroEntry) {
+				window.injectedPages = {
+					pageQ1: Number(numeroEntry.pageFromQ1 || 1),
+					pageQ2: Number(numeroEntry.pageFromQ2 || 1),
+					pageQ3: Number(numeroEntry.pageFromQ3 || 1)
+				};
+				window.injectedSurahs = {
+					pageQ1: numeroEntry.sourateFromQ1 || "",
+					pageQ2: numeroEntry.sourateFromQ2 || "",
+					pageQ3: numeroEntry.sourateFromQ3 || ""
+				};
+				window.injectedVersets = {
+					pageQ1: numeroEntry.versetFromQ1 || "",
+					pageQ2: numeroEntry.versetFromQ2 || "",
+					pageQ3: numeroEntry.versetFromQ3 || ""
+				};
+				window.injectedRanges = {
+					q1: {
+						startSurah: Number(numeroEntry.sourateFromQ1 || 0),
+						startAyah: Number(numeroEntry.versetFromQ1 || 0),
+						endSurah: Number(numeroEntry.sourateToQ1 || 0),
+						endAyah: Number(numeroEntry.versetToQ1 || 0)
+					},
+					q2: {
+						startSurah: Number(numeroEntry.sourateFromQ2 || 0),
+						startAyah: Number(numeroEntry.versetFromQ2 || 0),
+						endSurah: Number(numeroEntry.sourateToQ2 || 0),
+						endAyah: Number(numeroEntry.versetToQ2 || 0)
+					},
+					q3: {
+						startSurah: Number(numeroEntry.sourateFromQ3 || 0),
+						startAyah: Number(numeroEntry.versetFromQ3 || 0),
+						endSurah: Number(numeroEntry.sourateToQ3 || 0),
+						endAyah: Number(numeroEntry.versetToQ3 || 0)
+					}
+				};
+			} else {
+				window.injectedPages = { pageQ1: 1, pageQ2: 1, pageQ3: 1 };
+				window.injectedSurahs = { pageQ1: "", pageQ2: "", pageQ3: "" };
+				window.injectedVersets = { pageQ1: "", pageQ2: "", pageQ3: "" };
+				window.injectedRanges = {
+					q1: { startSurah: 0, startAyah: 0, endSurah: 0, endAyah: 0 },
+					q2: { startSurah: 0, startAyah: 0, endSurah: 0, endAyah: 0 },
+					q3: { startSurah: 0, startAyah: 0, endSurah: 0, endAyah: 0 }
+				};
+			}
 
+			window.dispatchEvent(new CustomEvent('numero-data-updated', {
+				detail: {
+					pages: window.injectedPages,
+					surahs: window.injectedSurahs,
+					versets: window.injectedVersets,
+					ranges: window.injectedRanges
+				}
+			}));
+		}
+		
 		onValue(numerosRef, (snapshot) => {
     		numerosData = snapshot.val() || {};
     		chargerCandidats();
@@ -329,33 +356,33 @@
 		async function chargerCandidats() {
     		const candidatsSnapshot = await get(ref(db, 'candidats'));
     		const notesSnapshot = await get(ref(db, 'notes'));
+
     		const candidatsData = candidatsSnapshot.val() || {};
     		const notesData = notesSnapshot.val() || {};
+
     		const selectElement = document.getElementById("candidatSelect");
     		selectElement.innerHTML = '<option value="">حدد مرشحًا</option>';
 
-    		Object.entries(numerosData).forEach(([numeroId, numero]) => {
-        		const candidatId = numero.candidatId;
+   		 Object.entries(numerosData).forEach(([numeroId, numero]) => {
+       		 const candidatId = numero.candidatId;
 
-        		if (!numero.interroge_tajweed && candidatsData[candidatId]) {
+	      		  if (!numero.interroge_tajweed && candidatsData[candidatId]) {
             		const candidat = candidatsData[candidatId];
-            		const note = notesData[candidatId];
-
-            		if (!note || note.notetajweed === 0) {
+         		   const note = notesData[candidatId];
+          		  if (!note || note.notetajweed === 0) {
                 		const option = document.createElement("option");
-                		option.value = candidatId;
-                		option.textContent = candidat.nom;
-                		selectElement.appendChild(option);
-            		}
-        		}
+              		  option.value = candidatId;
+              		  option.textContent = candidat.nom;
+             		   selectElement.appendChild(option);
+           		 }
+     		   }
     		});
-
 			localStorage.removeItem('selectedCandidate:tajweed');
-    		selectElement.value = "";
-    		Alpine.store('tajweed').selectedCandidate = "";
-    		injectNumeroDataForCandidate("");
+			selectElement.value = "";
+			Alpine.store('tajweed').selectedCandidate = "";
+			injectNumeroDataForCandidate("");
     		window.allCandidats = candidatsData;
-    		window.allNotes = notesData;
+  		  window.allNotes = notesData;
 		}
 
         window.validateScores = async function () {
@@ -414,56 +441,60 @@
         };
 
         function setupRealtimeListeners() {
-    		const store = Alpine.store('tajweed');
-    		const candidatSelect = document.getElementById('candidatSelect');
-    		let currentListenerRef = null;
-    		candidatSelect.addEventListener('change', () => {
-        		const candidatId = candidatSelect.value;
+            const store = Alpine.store('tajweed');
+            const candidatSelect = document.getElementById('candidatSelect');
+            let currentListenerRef = null;
 
-        		// On injecte ici les données du candidat actif
-        		injectNumeroDataForCandidate(candidatId);
+            candidatSelect.addEventListener('change', () => {
+                const candidatId = candidatSelect.value;
+                injectNumeroDataForCandidate(candidatId);
 
-        		if (currentListenerRef) {
-            		off(currentListenerRef);
-            		currentListenerRef = null;
-        		}
+                if (currentListenerRef) {
+                    off(currentListenerRef);
+                    currentListenerRef = null;
+                }
 
-        		if (!candidatId) return;
+                if (!candidatId) return;
 
-        		for (let i = 0; i < 3; i++) {
-            		store.annulations[i] = false;
-            		store.errors[i].jali = Array(12).fill(false);
-            		store.errors[i].khafi = Array(16).fill(false);
-            		store.previousErrors[i].jali = [];
-            		store.previousErrors[i].khafi = [];
-        		}
-        		store.calculateScores();
-        		const annuleRef = ref(db, 'notes/' + candidatId);
-        		onValue(annuleRef, (snapshot) => {
-            		const data = snapshot.val();
-            		if (!data) return;
-            		const store = Alpine.store('tajweed');
-            		for (let i = 0; i < 3; i++) {
-                		const annulée = data['annulequestion' + (i + 1)] === true;
-                		if (annulée && !store.annulations[i]) {
-                    		store.previousErrors[i].jali = [...store.errors[i].jali];
-                    		store.previousErrors[i].khafi = [...store.errors[i].khafi];
-                    		store.previousErrors[i].active = true;
-                    		store.errors[i].jali = store.errors[i].jali.map(() => true);
-                    		store.errors[i].khafi = store.errors[i].khafi.map(() => true);
-                		} else if (!annulée && store.annulations[i]) {
-                    		if (store.previousErrors[i].active) {
-                        		store.errors[i].jali = [...store.previousErrors[i].jali];
-                        		store.errors[i].khafi = [...store.previousErrors[i].khafi];
-                        		store.previousErrors[i].active = false;
-                    		}
-                		}
-                		store.annulations[i] = annulée;
-            		}
-            		store.calculateScores();
-        		});
-    		});
-		}
+                for (let i = 0; i < 3; i++) {
+                    store.annulations[i] = false;
+                    store.errors[i].jali = Array(12).fill(false);
+                    store.errors[i].khafi = Array(16).fill(false);
+                    store.previousErrors[i].jali = [];
+                    store.previousErrors[i].khafi = [];
+                }
+                store.calculateScores();
+
+                const annuleRef = ref(db, 'notes/' + candidatId);
+
+                onValue(annuleRef, (snapshot) => {
+                    const data = snapshot.val();
+                    if (!data) return;
+
+                    const store = Alpine.store('tajweed');
+
+                    for (let i = 0; i < 3; i++) {
+                        const annulée = data['annulequestion' + (i + 1)] === true;
+
+                        if (annulée && !store.annulations[i]) {
+                            store.previousErrors[i].jali = [...store.errors[i].jali];
+                            store.previousErrors[i].khafi = [...store.errors[i].khafi];
+                            store.previousErrors[i].active = true;
+                            store.errors[i].jali = store.errors[i].jali.map(() => true);
+                            store.errors[i].khafi = store.errors[i].khafi.map(() => true);
+                        } else if (!annulée && store.annulations[i]) {
+                            if (store.previousErrors[i].active) {
+                                store.errors[i].jali = [...store.previousErrors[i].jali];
+                                store.errors[i].khafi = [...store.previousErrors[i].khafi];
+                                store.previousErrors[i].active = false;
+                            }
+                        }
+                        store.annulations[i] = annulée;
+                    }
+                    store.calculateScores();
+                });
+            });
+        }
         setupRealtimeListeners();
     </script>
 </body>
