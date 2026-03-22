@@ -6,21 +6,21 @@
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script type="module">
-  window.fetchNumeros = function(callback) {
-    try {
-      onValue(ref(db, 'numeros'), snapshot => {
-        const data = snapshot.val() || {};
-        callback(Object.values(data), {
-          ajouterNumero: numero => set(ref(db, 'numeros/numero' + numero.id), numero),
-          supprimerNumero: id => remove(ref(db, 'numeros/numero' + id))
-        });
-      }, error => {
-        alert('خطأ في تحميل البيانات: ' + error.message);
-      });
-    } catch (e) {
-      alert('فشل في الاتصال بـ Firebase');
-    }
-  };
+  window.fetchNumeros = function(callback) {
+    try {
+      onValue(ref(db, 'numeros'), snapshot => {
+        const data = snapshot.val() || {};
+        callback(Object.values(data), {
+          ajouterNumero: numero => set(ref(db, 'numeros/numero' + numero.id), numero),
+          supprimerNumero: id => remove(ref(db, 'numeros/numero' + id))
+        });
+      }, error => {
+        alert('خطأ في تحميل البيانات: ' + error.message);
+      });
+    } catch (e) {
+      alert('فشل في الاتصال بـ Firebase');
+    }
+  };
 </script>
 <title>إدارة أرقام الأسئلة</title>
 <style>
@@ -32,48 +32,48 @@
 </head>
 <body class="bg-gray-100 min-h-screen">
   <div class="bg-white p-6 shadow-md rounded-lg max-w-[1000px] mx-auto"
-  x-data="{
-    numeros: [],
+  x-data="{
+    numeros: [],
 	ajzaFilter: '',
 	actions: null,
 	loading: true,
-    showModal: false,
-    snackbarMessage: '',
-    snackbarVisible: false,
+    showModal: false,
+    snackbarMessage: '',
+    snackbarVisible: false,
     numeroSelectionne: null,
-    confirmDelete: {
-      visible: false,
-      id: null,
-      confirm: () => {}
-    },
-    showSnackbar(message) {
-      this.snackbarMessage = message;
-      this.snackbarVisible = true;
-      setTimeout(() => this.snackbarVisible = false, 3000);
-    },
-    deleteNumero(id) {
-      this.confirmDelete.visible = true;
-      this.confirmDelete.id = id;
-      this.confirmDelete.confirm = () => {
-        this.actions.supprimerNumero(id)
-          .then(() => {
-            this.showSnackbar('تم حذف الرقم');
-            this.confirmDelete.visible = false;
-          })
-          .catch(error => this.showSnackbar('حدث خطأ: ' + error.message));
-      };
-    }
-  }"
+    confirmDelete: {
+      visible: false,
+      id: null,
+      confirm: () => {}
+    },
+    showSnackbar(message) {
+      this.snackbarMessage = message;
+      this.snackbarVisible = true;
+      setTimeout(() => this.snackbarVisible = false, 3000);
+    },
+    deleteNumero(id) {
+      this.confirmDelete.visible = true;
+      this.confirmDelete.id = id;
+      this.confirmDelete.confirm = () => {
+        this.actions.supprimerNumero(id)
+          .then(() => {
+            this.showSnackbar('تم حذف الرقم');
+            this.confirmDelete.visible = false;
+          })
+          .catch(error => this.showSnackbar('حدث خطأ: ' + error.message));
+      };
+    }
+  }"
   @snackbar.window="showSnackbar($event.detail)"
-  x-init="fetchNumeros(data => {
-    numeros = data;
-    loading = false;
-  }).then(result => actions = result)">
-  
-  <!-- Loading Spinner -->
-  <div x-show="loading" class="fixed inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50" x-cloak>
-    <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
-  </div>
+  x-init="fetchNumeros(data => {
+    numeros = data;
+    loading = false;
+  }).then(result => actions = result)">
+  
+  <!-- Loading Spinner -->
+  <div x-show="loading" class="fixed inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50" x-cloak>
+    <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+  </div>
 
 	<h1 class="text-2xl font-bold mb-4 text-center">إدارة أرقام الأسئلة</h1>
 	<div class="mb-4 flex items-center gap-4">
@@ -114,22 +114,25 @@
     sourates: [],
     pages: [],
     ajza: [],
-    candidats: [],
     ajzaSel: '',
     errorMessage: '',
     questions: [
-      {label:'السؤال الأول', sourateId:'', verset:'', page:'', maxVersets:0},
-      {label:'السؤال الثاني', sourateId:'', verset:'', page:'', maxVersets:0},
-      {label:'السؤال الثالث', sourateId:'', verset:'', page:'', maxVersets:0}
+      {label:'السؤال الأول', sourateFromId:'', versetFrom:'', pageFrom:'', maxVersetsFrom:0, sourateToId:'', versetTo:'', pageTo:'', maxVersetsTo:0},
+      {label:'السؤال الثاني', sourateFromId:'', versetFrom:'', pageFrom:'', maxVersetsFrom:0, sourateToId:'', versetTo:'', pageTo:'', maxVersetsTo:0},
+      {label:'السؤال الثالث', sourateFromId:'', versetFrom:'', pageFrom:'', maxVersetsFrom:0, sourateToId:'', versetTo:'', pageTo:'', maxVersetsTo:0}
     ],
     resetForm() {
       this.ajzaSel = '';
       this.errorMessage = '';
       this.questions.forEach(q => {
-        q.sourateId = '';
-        q.verset = '';
-        q.page = '';
-        q.maxVersets = 0;
+        q.sourateFromId = '';
+        q.versetFrom = '';
+        q.pageFrom = '';
+        q.maxVersetsFrom = 0;
+        q.sourateToId = '';
+        q.versetTo = '';
+        q.pageTo = '';
+        q.maxVersetsTo = 0;
       });
     },
     async init() {
@@ -144,14 +147,6 @@
         versets: v.verset
       }));
 
-      // Charger candidats
-      const snap2 = await get(ref(db, 'candidats'));
-      this.candidats = Object.values(snap2.val() || {});
-      
-      // Charger numéros existants pour récupérer les ajza déjà utilisés
-      const snapNumeros = await get(ref(db, 'numeros'));
-      const numerosExistants = Object.values(snapNumeros.val() || {});
-
       // Charger pages
       const snap3 = await get(ref(db, 'pages'));
       this.pages = Object.values(snap3.val() || {}).map(p => ({
@@ -161,30 +156,40 @@
         page: Number(p.page)
       }));
 
-      // Construire liste des ajza sans dépendre de la présence de candidats
-      const ajzaFromCandidats = this.candidats.map(c => Number(c.ajza)).filter(n => Number.isFinite(n) && n > 0);
-      const ajzaFromNumeros = numerosExistants.map(n => Number(n.ajza)).filter(n => Number.isFinite(n) && n > 0);
-      const ajzaDisponibles = [...new Set([...ajzaFromCandidats, ...ajzaFromNumeros])].sort((a, b) => a - b);
-
-      // Fallback: autoriser la création même sans aucun candidat enregistré
-      this.ajza = ajzaDisponibles.length ? ajzaDisponibles : Array.from({ length: 30 }, (_, i) => i + 1);
+      // Liste fixe des ajza (1..30)
+      this.ajza = Array.from({ length: 30 }, (_, i) => i + 1);
     },
-    majVersets(q) {
-      const s = this.sourates.find(x => x.id === q.sourateId);
-      q.maxVersets = s ? s.versets : 0;
-      q.verset = '';
-      q.page = ''; // vider la page quand on change de sourate
+    majVersets(q, side) {
+      const sourateKey = side === 'from' ? 'sourateFromId' : 'sourateToId';
+      const maxKey = side === 'from' ? 'maxVersetsFrom' : 'maxVersetsTo';
+      const versetKey = side === 'from' ? 'versetFrom' : 'versetTo';
+      const pageKey = side === 'from' ? 'pageFrom' : 'pageTo';
+      const s = this.sourates.find(x => String(x.id) === String(q[sourateKey]));
+      q[maxKey] = s ? Number(s.versets) : 0;
+      q[versetKey] = '';
+      q[pageKey] = '';
     },
-    majPage(q) {
-      if (!q.sourateId || !q.verset) { q.page = ''; return; }
-      const sId = String(q.sourateId);
-      const versetNum = Number(q.verset);
+    majPage(q, side) {
+      const sourateKey = side === 'from' ? 'sourateFromId' : 'sourateToId';
+      const versetKey = side === 'from' ? 'versetFrom' : 'versetTo';
+      const pageKey = side === 'from' ? 'pageFrom' : 'pageTo';
+      if (!q[sourateKey] || !q[versetKey]) { q[pageKey] = ''; return; }
+      const sId = String(q[sourateKey]);
+      const versetNum = Number(q[versetKey]);
       const match = this.pages.find(p =>
         String(p.sourateId) === sId &&
         versetNum >= Number(p.verset_debut) &&
         versetNum <= Number(p.verset_fin)
       );
-      q.page = match ? match.page : '';
+      q[pageKey] = match ? match.page : '';
+    },
+    syncToSourateWithFrom(q) {
+      q.sourateToId = q.sourateFromId;
+      this.majVersets(q, 'to');
+    },
+    syncToVersetWithFrom(q) {
+      q.versetTo = q.versetFrom;
+      this.majPage(q, 'to');
     },
     async confirmer() {
       if (!this.ajzaSel) {
@@ -192,7 +197,7 @@
         return;
       }
 
-      if (this.questions.some(q => !q.sourateId?.trim() || !q.verset || !q.page)) {
+      if (this.questions.some(q => !q.sourateFromId || !q.versetFrom || !q.sourateToId || !q.versetTo)) {
         this.errorMessage = 'يرجى ملء جميع الحقول.';
         return;
       }
@@ -200,10 +205,19 @@
       const dataToSave = {ajza: +this.ajzaSel};
 
       this.questions.forEach((q, i) => {
-        const sObj = this.sourates.find(s => s.id === q.sourateId);
-        dataToSave[`sourateQ${i+1}`] = sObj.nom;
-        dataToSave[`versetQ${i+1}`] = +q.verset;
-        dataToSave[`pageQ${i+1}`] = +q.page;
+        const idx = i + 1;
+        const sourateFrom = Number(q.sourateFromId);
+        const sourateTo = Number(q.sourateToId);
+        const versetFrom = Number(q.versetFrom);
+        const versetTo = Number(q.versetTo);
+
+        dataToSave[`sourateFromQ${idx}`] = sourateFrom;
+        dataToSave[`versetFromQ${idx}`] = versetFrom;
+        dataToSave[`pageFromQ${idx}`] = Number(q.pageFrom || 0);
+
+        dataToSave[`sourateToQ${idx}`] = sourateTo;
+        dataToSave[`versetToQ${idx}`] = versetTo;
+        dataToSave[`pageToQ${idx}`] = Number(q.pageTo || 0);
       });
 
       try {
@@ -215,38 +229,43 @@
         const existantKeys = new Set();
         const localKeys = new Set();
 
-		for (let i = 1; i <= 3; i++) {
-  		const s = dataToSave[`sourateQ${i}`];
-  		const v = dataToSave[`versetQ${i}`];
+        for (let i = 1; i <= 3; i++) {
+          for (const part of ['From', 'To']) {
+            const s = dataToSave[`sourate${part}Q${i}`];
+            const v = +dataToSave[`verset${part}Q${i}`];
 
-  		if (s && v) {
-    		const key = `${s}:${v}`;
-    		if (localKeys.has(key)) {
-      		this.errorMessage = `لا يمكن اختيار نفس الآية أكثر من مرة (سورة ${s}، آية ${v}).`;
-      		return;
-    		}
-    		localKeys.add(key);
-  		}
-		}
+            if (s && v) {
+              const key = `${s}:${v}`;
+              if (localKeys.has(key)) {
+                this.errorMessage = `لا يمكن اختيار نفس الآية أكثر من مرة (سورة ${s}، آية ${v}).`;
+                return;
+              }
+              localKeys.add(key);
+            }
+          }
+        }
 
         for (const id in allNumeros) {
           if (numeroSelectionne && id === String(numeroSelectionne.id)) continue;
           const enreg = allNumeros[id];
           for (let i = 1; i <= 3; i++) {
-            const s = enreg[`sourateQ${i}`];
-            const v = +enreg[`versetQ${i}`];
-            if (s && v) {
-              existantKeys.add(`${s}:${v}`);
-            }
+            const fromS = enreg[`sourateFromQ${i}`];
+            const fromV = +enreg[`versetFromQ${i}`];
+            const toS = enreg[`sourateToQ${i}`];
+            const toV = +enreg[`versetToQ${i}`];
+            if (fromS && fromV) existantKeys.add(`${fromS}:${fromV}`);
+            if (toS && toV) existantKeys.add(`${toS}:${toV}`);
           }
         }
 
         for (let i = 1; i <= 3; i++) {
-          const s = dataToSave[`sourateQ${i}`];
-          const v = +dataToSave[`versetQ${i}`];
-          if (s && v && existantKeys.has(`${s}:${v}`)) {
-            this.errorMessage = `الآية ${v} من سورة ${s} موجودة بالفعل.`;
-            return;
+          for (const part of ['From', 'To']) {
+            const s = dataToSave[`sourate${part}Q${i}`];
+            const v = +dataToSave[`verset${part}Q${i}`];
+            if (s && v && existantKeys.has(`${s}:${v}`)) {
+              this.errorMessage = `الآية ${v} من سورة ${s} موجودة بالفعل.`;
+              return;
+            }
           }
         }
 
@@ -311,12 +330,27 @@
       errorMessage = '';
       ajzaSel = numeroSelectionne.ajza;
       questions.forEach((q, i) => {
-        const sNom = numeroSelectionne[`sourateQ${i+1}`];
-        const sourateObj = sourates.find(s => s.nom === sNom);
-        q.sourateId = sourateObj?.id || '';
-        Alpine.nextTick(() => {q.verset = numeroSelectionne[`versetQ${i+1}`] || '';});
-        q.page = numeroSelectionne[`pageQ${i+1}`] || '';
-        q.maxVersets = sourateObj?.versets || 0;
+        const idx = i + 1;
+        const fromS = numeroSelectionne[`sourateFromQ${idx}`];
+        const fromV = numeroSelectionne[`versetFromQ${idx}`];
+        const toS = numeroSelectionne[`sourateToQ${idx}`];
+        const toV = numeroSelectionne[`versetToQ${idx}`];
+
+        q.sourateFromId = fromS ? String(fromS) : '';
+        q.sourateToId = toS ? String(toS) : '';
+
+        const fromObj = sourates.find(s => String(s.id) === String(q.sourateFromId));
+        const toObj = sourates.find(s => String(s.id) === String(q.sourateToId));
+
+        q.maxVersetsFrom = fromObj?.versets || 0;
+        q.maxVersetsTo = toObj?.versets || 0;
+
+        Alpine.nextTick(() => {
+          q.versetFrom = fromV || '';
+          q.versetTo = toV || '';
+          majPage(q, 'from');
+          majPage(q, 'to');
+        });
       });
     } else {
       resetForm();
@@ -344,28 +378,51 @@
       <template x-for="(q, i) in questions" :key="i">
         <div class="border border-gray-300 p-4 rounded bg-gray-50">
           <h2 class="text-lg font-bold text-blue-600 mb-4" x-text="q.label"></h2>
-          <label class="block mb-1">السورة</label>
-          <select x-model="q.sourateId" @change="majVersets(q)" :class="{'border-red-500': !q.sourateId && errorMessage}" class="w-full border-2 border-gray-500 p-2 rounded mb-2">
-            <option value="">-- اختر سورة --</option>
-            <template x-for="s in sourates" :key="s.id">
-              <option :value="s.id" x-text="s.nom"></option>
-            </template>
-          </select>
-          <div class="flex gap-4 items-end">
-            <div class="flex-1">
+          <div class="grid grid-cols-2 gap-2 items-end mb-3">
+            <div class="col-span-2 text-sm font-bold text-gray-700">من</div>
+            <div class="min-w-0">
+              <label class="block mb-1">السورة</label>
+              <select x-model="q.sourateFromId" @change="majVersets(q, 'from'); syncToSourateWithFrom(q)" :class="{'border-red-500': !q.sourateFromId && errorMessage}" class="w-full border-2 border-gray-500 p-2 rounded">
+                <option value="">-- اختر سورة --</option>
+                <template x-for="s in sourates" :key="'from-'+s.id">
+                  <option :value="s.id" x-text="s.nom"></option>
+                </template>
+              </select>
+            </div>
+            <div class="min-w-0">
               <label class="block mb-1">الآية</label>
-              <select x-model="q.verset" @change="majPage(q)" :class="{'border-red-500': !q.verset && errorMessage}" class="w-full border-2 border-gray-500 p-2 rounded">
+              <select x-model="q.versetFrom" @change="majPage(q, 'from'); syncToVersetWithFrom(q)" :class="{'border-red-500': !q.versetFrom && errorMessage}" class="w-full border-2 border-gray-500 p-2 rounded">
                 <option value="">-- اختر آية --</option>
-                <template x-if="q.maxVersets > 0">
-                  <template x-for="n in q.maxVersets" :key="n">
+                <template x-if="q.maxVersetsFrom > 0">
+                  <template x-for="n in q.maxVersetsFrom" :key="'from-v-'+n">
                     <option :value="n" x-text="n"></option>
                   </template>
                 </template>
               </select>
             </div>
-            <div class="w-24 text-center">
-              <label class="block mb-1">الصفحة</label>
-              <div class="border border-gray-300 rounded bg-gray-100 py-2" x-text="q.page || '-'"></div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 items-end">
+            <div class="col-span-2 text-sm font-bold text-gray-700">إلى</div>
+            <div class="min-w-0">
+              <label class="block mb-1">السورة</label>
+              <select x-model="q.sourateToId" @change="majVersets(q, 'to')" :class="{'border-red-500': !q.sourateToId && errorMessage}" class="w-full border-2 border-gray-500 p-2 rounded">
+                <option value="">-- اختر سورة --</option>
+                <template x-for="s in sourates" :key="'to-'+s.id">
+                  <option :value="s.id" x-text="s.nom"></option>
+                </template>
+              </select>
+            </div>
+            <div class="min-w-0">
+              <label class="block mb-1">الآية</label>
+              <select x-model="q.versetTo" @change="majPage(q, 'to')" :class="{'border-red-500': !q.versetTo && errorMessage}" class="w-full border-2 border-gray-500 p-2 rounded">
+                <option value="">-- اختر آية --</option>
+                <template x-if="q.maxVersetsTo > 0">
+                  <template x-for="n in q.maxVersetsTo" :key="'to-v-'+n">
+                    <option :value="n" x-text="n"></option>
+                  </template>
+                </template>
+              </select>
             </div>
           </div>
         </div>
