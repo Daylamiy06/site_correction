@@ -1,10 +1,12 @@
 <div x-data="mushaf()" x-init="init()" class="w-full max-w-5xl mx-auto p-4 bg-gray-100 rounded shadow" dir="rtl" translate="no">
   <div class="flex justify-center gap-4 mb-4">
-    <button @click="setQuestion(1)" :class="activeQuestion===1?'font-bold border-b-4 border-blue-500 bg-sky-100':''" class="text-blue-700 p-2 rounded">السؤال الأول</button>
-    <button @click="setQuestion(2)" :class="activeQuestion===2?'font-bold border-b-4 border-blue-500 bg-sky-100':''" class="text-blue-700 p-2 rounded">السؤال الثاني</button>
     <button @click="setQuestion(3)" :class="activeQuestion===3?'font-bold border-b-4 border-blue-500 bg-sky-100':''" class="text-blue-700 p-2 rounded">السؤال الثالث</button>
+    <button @click="setQuestion(2)" :class="activeQuestion===2?'font-bold border-b-4 border-blue-500 bg-sky-100':''" class="text-blue-700 p-2 rounded">السؤال الثاني</button>
+    <button @click="setQuestion(1)" :class="activeQuestion===1?'font-bold border-b-4 border-blue-500 bg-sky-100':''" class="text-blue-700 p-2 rounded">السؤال الأول</button>
   </div>
+
   <div class="text-right text-green-700 font-bold text-lg mb-2" x-text="getRangeLabel()"></div>
+
   <div class="bg-white shadow p-8 quran notranslate" x-ref="container"></div>
 </div>
 
@@ -22,184 +24,167 @@
   text-justify:inter-word;
   word-spacing:-0.27em;
   user-select:none;
+  -webkit-user-select:none;
+  -moz-user-select:none;
 }
 .word{ white-space:pre-wrap; }
 .basmala{ text-align:center; margin-top:18px; }
 </style>
+
 <script>
-async function fetchSurahNamesFromFirebase(){
-  try{
-    const res=await fetch("https://correctionconcours-default-rtdb.europe-west1.firebasedatabase.app/sourates.json");
-    const data=await res.json()||{};
-    const map={};
-
-    Object.keys(data).forEach(k=>{
-      map[Number(k)]=data[k];
-    });
-
-    return map;
-  }catch(e){
-    return {};
-  }
-}
-
 function mushaf(){
   return {
-    verses:[],
-    allVerses:[],
-    verseIndex:{},
-    loadedFonts:new Set(),
-    surahNames:{},
-    activeQuestion:1,
-    ranges:{
-      q1:{startSurah:0,startAyah:0,endSurah:0,endAyah:0},
-      q2:{startSurah:0,startAyah:0,endSurah:0,endAyah:0},
-      q3:{startSurah:0,startAyah:0,endSurah:0,endAyah:0}
+    verses: [],
+    allVerses: [],
+    verseIndex: {},
+    loadedFonts: new Set(),
+    activeQuestion: 1,
+    ranges: {
+      q1: { startSurah:0, startAyah:0, endSurah:0, endAyah:0 },
+      q2: { startSurah:0, startAyah:0, endSurah:0, endAyah:0 },
+      q3: { startSurah:0, startAyah:0, endSurah:0, endAyah:0 }
     },
 
     async init(){
-      try{
-        const res=await fetch("mushaf/data/quran-codev2.json");
-        const data=await res.json();
-        this.allVerses=data.verses||[];
-      }catch(e){
-        this.allVerses=[];
+      try {
+        const res = await fetch("mushaf/data/quran-codev2.json");
+        if (!res.ok) throw new Error(`quran-codev2.json not found (${res.status})`);
+        const data = await res.json();
+        this.allVerses = data.verses || [];
+      } catch (e) {
+        console.error(e);
+        this.allVerses = [];
       }
 
-      for(const v of this.allVerses){
-        this.verseIndex[v.verse_key]=v.id;
+      for (const v of this.allVerses) {
+        this.verseIndex[v.verse_key] = v.id;
       }
 
       this.applyInjectedData();
-      window.addEventListener('numero-data-updated',e=>{
-        this.applyInjectedData(e.detail||null);
+      window.addEventListener('numero-data-updated', (event) => {
+        this.applyInjectedData(event.detail || null);
       });
 
-      this.surahNames=await fetchSurahNamesFromFirebase();
       this.loadActiveRange();
     },
 
-    applyInjectedData(detail=null){
-      const ranges=detail?.ranges||window.injectedRanges;
-      if(!ranges)return;
+    applyInjectedData(detail = null) {
+      const ranges = detail?.ranges || window.injectedRanges;
+      if (!ranges) return;
 
-      this.ranges={
-        q1:{...this.ranges.q1,...(ranges.q1||{})},
-        q2:{...this.ranges.q2,...(ranges.q2||{})},
-        q3:{...this.ranges.q3,...(ranges.q3||{})}
+      this.ranges = {
+        q1: { ...this.ranges.q1, ...(ranges.q1 || {}) },
+        q2: { ...this.ranges.q2, ...(ranges.q2 || {}) },
+        q3: { ...this.ranges.q3, ...(ranges.q3 || {}) }
       };
-    },
 
-    setQuestion(n){
-      this.activeQuestion=n;
       this.loadActiveRange();
     },
 
-    loadActiveRange(){
-      this.loadRange(this.ranges[`q${this.activeQuestion}`]);
+    setQuestion(questionNumber) {
+      this.activeQuestion = questionNumber;
+      this.loadActiveRange();
+    },
+
+    loadActiveRange() {
+      const range = this.ranges[`q${this.activeQuestion}`];
+      this.loadRange(range);
     },
 
     loadRange(range){
-      if(!range){this.verses=[];this.render();return;}
+      if (!range) { this.verses = []; this.render(); return; }
 
-      const s1=Number(range.startSurah||0);
-      const a1=Number(range.startAyah||0);
-      const s2=Number(range.endSurah||0);
-      const a2=Number(range.endAyah||0);
+      const startSurah = Number(range.startSurah || 0);
+      const startAyah = Number(range.startAyah || 0);
+      const endSurah = Number(range.endSurah || 0);
+      const endAyah = Number(range.endAyah || 0);
 
-      if(!s1||!a1||!s2||!a2){
-        this.verses=[];this.render();return;
+      if (!startSurah || !startAyah || !endSurah || !endAyah) {
+        this.verses = [];
+        this.render();
+        return;
       }
 
-      const startId=this.verseIndex[`${s1}:${a1}`];
-      const endId=this.verseIndex[`${s2}:${a2}`];
-
-      if(startId==null||endId==null||endId<startId){
-        this.verses=[];this.render();return;
+      const startId = this.verseIndex[`${startSurah}:${startAyah}`];
+      const endId = this.verseIndex[`${endSurah}:${endAyah}`];
+      if (startId == null || endId == null || endId < startId) {
+        this.verses = [];
+        this.render();
+        return;
       }
 
-      this.verses=this.allVerses.filter(v=>v.id>=startId&&v.id<=endId);
+      this.verses = this.allVerses.filter(v => v.id >= startId && v.id <= endId);
       this.injectFonts();
       this.render();
     },
 
     injectFonts(){
-      const style=document.getElementById("qcf-fonts");
-      const pages=[...new Set(this.verses.map(v=>v.v2_page))];
-      if(!pages.includes(1))pages.push(1);
-
-      for(const p of pages){
-        if(this.loadedFonts.has(p))continue;
-        style.insertAdjacentHTML("beforeend",`@font-face{font-family:qcf-p${p};src:url(mushaf/fonts/qcf/p${p}.woff2) format("woff2");font-display:block;}`);
+      const style = document.getElementById("qcf-fonts");
+      const pages = [...new Set(this.verses.map(v => v.v2_page))];
+      // Basmala (except in sourate 1/9) uses qcf-p1 glyphs; ensure p1 is always available.
+      if (!pages.includes(1)) pages.push(1);
+      for (const p of pages) {
+        if (this.loadedFonts.has(p)) continue;
+        style.insertAdjacentHTML("beforeend", `@font-face{font-family:qcf-p${p};src:url(mushaf/fonts/qcf/p${p}.woff2) format("woff2");font-display:block;}`);
         this.loadedFonts.add(p);
       }
     },
 
     render(){
-      const c=this.$refs.container;
-      c.innerHTML="";
+      const container = this.$refs.container;
+      container.innerHTML = "";
 
-      if(!this.verses.length){
-        c.innerHTML='<div class="text-center text-gray-500">لا توجد بيانات لهذا النطاق.</div>';
+      if (!this.verses.length) {
+        container.innerHTML = '<div class="text-center text-gray-500">لا توجد بيانات لهذا النطاق.</div>';
         return;
       }
 
-      const frag=document.createDocumentFragment();
+      const frag = document.createDocumentFragment();
+      for (const v of this.verses) {
+        const [surah, ayah] = v.verse_key.split(":").map(Number);
+        const pageFont = `qcf-p${v.v2_page}`;
 
-      for(const v of this.verses){
-        const[surah,ayah]=v.verse_key.split(":").map(Number);
-        const f=`qcf-p${v.v2_page}`;
-
-        if(ayah===1&&surah!==1&&surah!==9){
-          const b=document.createElement("div");
-          b.className="basmala";
-          b.style.fontFamily="qcf-p1";
-          b.innerHTML="ﱁ ﱂ ﱃ ﱄ ";
-          frag.appendChild(b);
+        if (ayah === 1 && surah !== 1 && surah !== 9) {
+          const basmala = document.createElement("div");
+          basmala.className = "basmala";
+          basmala.style.fontFamily = "qcf-p1";
+          basmala.innerHTML = "ﱁ ﱂ ﱃ ﱄ ";
+          frag.appendChild(basmala);
         }
 
-        if(surah===1&&ayah===1){
-          const b=document.createElement("div");
-          b.className="basmala";
-          b.style.fontFamily=f;
-          b.innerHTML=v.code_v2;
-          frag.appendChild(b);
+        if (surah === 1 && ayah === 1) {
+          const basmala = document.createElement("div");
+          basmala.className = "basmala";
+          basmala.style.fontFamily = pageFont;
+          basmala.innerHTML = v.code_v2;
+          frag.appendChild(basmala);
           continue;
         }
 
-        const words=v.code_v2.split(" ");
-        for(const w of words){
-          const span=document.createElement("span");
-          span.className="word";
-          span.style.fontFamily=f;
-          span.textContent=w+" ";
+        const words = v.code_v2.split(" ");
+        for (const w of words) {
+          const span = document.createElement("span");
+          span.className = "word";
+          span.style.fontFamily = pageFont;
+          span.textContent = w + " ";
           frag.appendChild(span);
         }
       }
-
-      c.appendChild(frag);
+      container.appendChild(frag);
     },
 
-    toArabicDigits(v){
-      return String(v||'').replace(/\d/g,d=>"٠١٢٣٤٥٦٧٨٩"[d]);
+    toArabicDigits(value) {
+      return String(value || '').replace(/\d/g, d => "٠١٢٣٤٥٦٧٨٩"[d]);
     },
 
-    getSurahName(n){
-      return this.surahNames?.[Number(n)]?.sourate||"-";
-    },
-
-    getRangeLabel(){
-  	const r=this.ranges[`q${this.activeQuestion}`]||{};
-  	const s1=Number(r.startSurah);
-  	const s2=Number(r.endSurah);
-  	const a1=this.toArabicDigits(r.startAyah);
-  	const a2=this.toArabicDigits(r.endAyah);
-  	const name=this.getSurahName(s1);
-  	if(s1&&s2&&s1===s2){
-    	return `سورة ${name}، آية ${a1} - ${a2}`;
-  	}
-  	return `من سورة ${this.getSurahName(s1)} آية ${a1} إلى سورة ${this.getSurahName(s2)} آية ${a2}`;
-	}
+    getRangeLabel() {
+      const range = this.ranges[`q${this.activeQuestion}`] || {};
+      const s1 = this.toArabicDigits(range.startSurah || '-');
+      const a1 = this.toArabicDigits(range.startAyah || '-');
+      const s2 = this.toArabicDigits(range.endSurah || '-');
+      const a2 = this.toArabicDigits(range.endAyah || '-');
+      return `من سورة ${s1} آية ${a1} إلى سورة ${s2} آية ${a2}`;
+    }
   }
 }
 </script>
