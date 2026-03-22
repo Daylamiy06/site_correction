@@ -32,12 +32,29 @@
 </style>
 
 <script>
+async function fetchSurahNamesFromFirebase(){
+  try{
+    const res=await fetch("https://correctionconcours-default-rtdb.europe-west1.firebasedatabase.app/sourates.json");
+    const data=await res.json()||{};
+    const map={};
+
+    Object.keys(data).forEach(k=>{
+      map[Number(k)]=data[k];
+    });
+
+    return map;
+  }catch(e){
+    return {};
+  }
+}
+
 function mushaf(){
   return {
     verses: [],
     allVerses: [],
     verseIndex: {},
     loadedFonts: new Set(),
+    surahNames:{},
     activeQuestion: 1,
     ranges: {
       q1: { startSurah:0, startAyah:0, endSurah:0, endAyah:0 },
@@ -64,7 +81,7 @@ function mushaf(){
       window.addEventListener('numero-data-updated', (event) => {
         this.applyInjectedData(event.detail || null);
       });
-
+	  this.surahNames=await fetchSurahNamesFromFirebase();
       this.loadActiveRange();
     },
 
