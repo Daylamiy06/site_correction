@@ -122,7 +122,7 @@ function mushaf(){
       this.loadActiveRange();
     },
 
-    setQuestion(questionNumber) {
+    async setQuestion(questionNumber) {
       this.loadingContent = true;
       this.activeQuestion = questionNumber;
 	  await new Promise(r => requestAnimationFrame(r));
