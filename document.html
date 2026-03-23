@@ -4,13 +4,29 @@
     <button @click="setQuestion(2)" :class="activeQuestion===2?'font-bold border-b-4 border-blue-500 bg-sky-100':''" class="text-blue-700 p-2 rounded">السؤال الثاني</button>
     <button @click="setQuestion(3)" :class="activeQuestion===3?'font-bold border-b-4 border-blue-500 bg-sky-100':''" class="text-blue-700 p-2 rounded">السؤال الثالث</button>
   </div>
-  
-  <div x-show="loading" class="fixed inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50">
-    <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500"></div>
+
+  <div class="text-right text-green-700 font-bold text-lg mb-2 min-h-[28px] w-full">
+    <template x-if="loadingLabel">
+  	<div class="h-6 w-full bg-gray-300 rounded animate-pulse"></div>
+	</template>
+    <template x-if="!loadingLabel">
+      <span x-text="getRangeLabel()"></span>
+    </template>
   </div>
 
-  <div class="text-right text-green-700 font-bold text-lg mb-2" x-text="getRangeLabel()"></div>
-  <div x-show="!loading" class="bg-white shadow p-8 quran notranslate" x-ref="container"></div>
+  <div class="bg-white shadow p-8 quran notranslate" x-ref="container">
+    <template x-if="loadingContent">
+      <div class="leading-[2.15] text-right">
+        <template x-for="i in 5">
+          <div class="flex flex-wrap gap-x-2 mb-3">
+            <template x-for="j in 18">
+              <span class="inline-block h-6 bg-gray-300 rounded animate-pulse" :style="`width:${Math.random()*40+20}px`"></span>
+            </template>
+          </div>
+        </template>
+      </div>
+    </template>
+  </div>
 </div>
 
 <style id="qcf-fonts"></style>
@@ -56,7 +72,8 @@ function mushaf(){
     verses: [],
     allVerses: [],
     verseIndex: {},
-    loading: false,
+    loadingLabel: true,
+    loadingContent: true,
     loadedFonts: new Set(),
     surahNames:{},
     activeQuestion: 1,
@@ -67,6 +84,8 @@ function mushaf(){
     },
 
     async init(){
+      this.loadingLabel = true;
+      this.loadingContent = true;
       try {
         const res = await fetch("mushaf/data/quran-codev2.json");
         if (!res.ok) throw new Error(`quran-codev2.json not found (${res.status})`);
@@ -86,6 +105,7 @@ function mushaf(){
         this.applyInjectedData(event.detail || null);
       });
 	  this.surahNames=await fetchSurahNamesFromFirebase();
+	  this.loadingLabel = false;
       this.loadActiveRange();
     },
 
@@ -103,6 +123,7 @@ function mushaf(){
     },
 
     setQuestion(questionNumber) {
+      this.loadingContent = true;
       this.activeQuestion = questionNumber;
       this.loadActiveRange();
     },
@@ -113,7 +134,6 @@ function mushaf(){
     },
 
     loadRange(range){
-      this.loading = true;
       if (!range) { this.verses = []; this.render(); return; }
 
       const startSurah = Number(range.startSurah || 0);
@@ -193,7 +213,7 @@ function mushaf(){
         }
       }
       container.appendChild(frag);
-      this.loading = false;
+      this.loadingContent = false;
     },
 
     toArabicDigits(value) {
