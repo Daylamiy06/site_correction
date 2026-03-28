@@ -49,7 +49,7 @@
       <!-- Sélecteur Ajza -->
       <div class="mb-4 flex items-center gap-2">
         <label class="block text-lg font-bold whitespace-nowrap">تصفية الأرقام حسب الجزء :</label>
-        <select class="border p-2 rounded w-24" x-model="selectedAjza" @change="syncSelection()">
+        <select class="border p-2 rounded w-24" x-model="selectedAjza" @change="candidatSelectionne=''; syncSelection()">
           <template x-for="j in [...new Set(numeros.map(n => n.ajza))].sort((a, b) => b - a)" :key="j">
             <option :value="j" x-text="j"></option>
           </template>
@@ -69,11 +69,11 @@
     </div>
 
     <!-- Liste des numéros -->
-    <div x-show="!candidatSelectionne || !candidatsFiltres.some(c => c.nom === candidatSelectionne)" 
+    <div x-show="!candidatSelectionne" 
          class="text-gray-500 text-center py-8" 
          x-text="messageTemporaire || 'الرجاء اختيار مرشح لعرض الأرقام.'"></div>
 
-    <div x-show="candidatSelectionne && candidatsFiltres.some(c => c.nom === candidatSelectionne)" 
+    <div x-show="candidatSelectionne" 
          class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4" dir="ltr">
       <template x-for="numero in numeros.filter(n => n.ajza == selectedAjza && !n.candidatId).sort((a, b) => a.numero - b.numero)" :key="numero.id">
         <div @click="attribuerNumero(numero.id)" 
@@ -112,7 +112,6 @@
   const db = getDatabase(app);
   const auth = getAuth(app);
   const store = Alpine.store('candidat');
-
   onAuthStateChanged(auth, (user) => {
     if (!user) window.location.href = 'login.html';
   });
@@ -120,7 +119,6 @@
   const loggedInUser = localStorage.getItem('loggedInUser');
   const userRole = localStorage.getItem('userRole');
   const userRef = ref(db, 'utilisateurs/' + loggedInUser);
-
   async function startLastSeenUpdate() {
     const updateLastSeen = () => update(userRef, { lastSeen: Date.now() });
     updateLastSeen();
@@ -146,7 +144,11 @@
       const list = Object.entries(data).map(([id, n]) => ({ id, ...n }));
       store.numeros = list;
       const sortedAjza = [...new Set(list.map(n => n.ajza))].sort((a, b) => b - a);
-      if (!store.selectedAjza) store.selectedAjza = sortedAjza[0] || "";
+      if (!store.selectedAjza) {
+    	store.selectedAjza = sortedAjza[0] || "";
+    	store.candidatSelectionne = "";
+    	if (store.syncSelection) store.syncSelection();
+  	}
       store.loading = false;
     });
   }
@@ -191,7 +193,6 @@
   }
 
   window.attribuerNumero = attribuerNumero;
-
   window.logout = async function () {
     await update(userRef, { lastSeen: Date.now() - 6 * 60 * 1000 });
     await signOut(auth);
